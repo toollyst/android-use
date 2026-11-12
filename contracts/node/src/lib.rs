@@ -13,7 +13,6 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-// Applies only to the generated code.
 mod generated {
     include!("generated/droiduse.node.rs");
 }
