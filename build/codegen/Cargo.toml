@@ -26,6 +26,8 @@ zip.workspace = true
 
 [dev-dependencies]
 # The generated contract code itself is exercised here (wire format of the adp types).
+# common: the guest_link and node metadata key constants are kept equal to its W3C field names.
 droiduse-contracts-adp = { path = "../../contracts/adp" }
+droiduse-contracts-common = { path = "../../contracts/common" }
 droiduse-contracts-guest-link = { path = "../../contracts/guest_link" }
 droiduse-contracts-node = { path = "../../contracts/node" }
