@@ -9,6 +9,7 @@
 - 변경 PR에는 양쪽 레이어 OWNERS 승인이 필요하다.
 - 직렬화 계약(guest_link, adp, node)은 `build/codegen`으로 Rust / Kotlin·Java / C++ / TypeScript / Python 코드를 생성한다.
 - 모든 채널은 인증한다. 모든 메시지에 `trace_id`를 실을 수 있다.
+- 비동기 수명주기 호출(VM 생성·시작·스냅샷·복원, 세션 acquire 등)이 도중에 취소되면(future drop) 그 인스턴스는 `Failed`로 끝나고 자원 정리는 runtime이 맡으며(반쯤 된 VM은 `Ready`로 보이지 않는다), 읽기 호출의 취소는 부작용이 없다.
 
 ## 계약 목록
 | 계약 | 경계 | 형식 | 전송 |
