@@ -32,44 +32,46 @@
 
 ### 시그니처 초안
 ```rust
+// 비동기 메서드가 있는 trait은 #[async_trait]: dyn으로 주입할 수 있고 future는 Send
 pub trait SnapshotStore: Send + Sync {
-    fn put(&self, meta: &SnapshotMeta, parts: SnapshotParts) -> impl Future<Output = Result<SnapshotRef>> + Send;
-    fn open(&self, r: &SnapshotRef) -> impl Future<Output = Result<SnapshotHandle>> + Send;   // 메타 + 디바이스 state + MemorySource 팩토리
-    fn list(&self, selector: &LabelSelector) -> impl Future<Output = Result<Vec<SnapshotRef>>> + Send;
-    fn delete(&self, r: &SnapshotRef) -> impl Future<Output = Result<()>> + Send;
+    async fn put(&self, meta: &SnapshotMeta, parts: SnapshotParts) -> Result<SnapshotRef>;
+    async fn open(&self, r: &SnapshotRef) -> Result<SnapshotHandle>;   // 메타 + 디바이스 state + MemorySource 팩토리
+    async fn list(&self, selector: &LabelSelector) -> Result<Vec<SnapshotRef>>;
+    async fn delete(&self, r: &SnapshotRef) -> Result<()>;
 }
 pub trait MemorySource: Send + Sync {
     fn len(&self) -> u64;
-    fn read_at(&self, offset: u64, buf: &mut [u8]) -> impl Future<Output = Result<()>> + Send;
-    fn prefetch(&self, ranges: &[std::ops::Range<u64>]) -> impl Future<Output = ()> + Send;        // 워킹셋 힌트
+    async fn read_at(&self, offset: u64, len: usize) -> Result<Bytes>;   // 소유 버퍼 (bytes::Bytes)
+    async fn prefetch(&self, ranges: &[std::ops::Range<u64>]);          // 워킹셋 힌트
 }
 pub trait ProfileStore: Send + Sync {
-    fn open(&self, id: &ProfileId) -> impl Future<Output = Result<DiskLayer>> + Send;
-    fn commit(&self, id: &ProfileId, layer: DiskLayer) -> impl Future<Output = Result<()>> + Send;
+    async fn open(&self, id: &ProfileId) -> Result<DiskLayer>;
+    async fn commit(&self, id: &ProfileId, layer: DiskLayer) -> Result<()>;
 }
 pub trait Authenticator: Send + Sync {
-    fn authenticate(&self, cred: &Credential, ch: &ChannelCtx) -> impl Future<Output = Result<Principal>> + Send;
+    async fn authenticate(&self, cred: &Credential, ch: &ChannelCtx) -> Result<Principal>;
 }
 pub trait Authorizer: Send + Sync {
-    fn authorize(&self, who: &Principal, action: &Action, on: &Resource) -> impl Future<Output = Decision> + Send;
+    async fn authorize(&self, who: &Principal, action: &Action, on: &Resource) -> Result<Decision>;   // Err·취소는 거부 (fail closed)
 }
 pub trait PolicyProvider: Send + Sync {
-    fn session_policy(&self, labels: &Labels) -> impl Future<Output = Result<SessionPolicy>> + Send;   // egress, 리소스 한도, TLS 가시성 등
+    async fn session_policy(&self, labels: &Labels) -> Result<SessionPolicy>;   // egress, 리소스 한도, TLS 가시성 등
 }
 pub trait EgressUpstream: Send + Sync {
-    fn connect(&self, dst: &Destination, flow: &FlowCtx) -> impl Future<Output = Result<Box<dyn Conn>>> + Send;
+    async fn connect(&self, dst: &Destination, flow: &FlowCtx) -> Result<Box<dyn Conn>>;
 }
+pub trait Conn: AsyncRead + AsyncWrite + Send {}   // futures_io
 pub trait DeviceProfileProvider: Send + Sync {
-    fn profile(&self, labels: &Labels) -> impl Future<Output = Result<DeviceProfile>> + Send;
+    async fn profile(&self, labels: &Labels) -> Result<DeviceProfile>;
 }
 pub trait StreamTransport: Send + Sync {
-    fn publish(&self, session: &SessionId, track: EncodedTrack) -> impl Future<Output = Result<StreamEndpoint>> + Send;
+    async fn publish(&self, session: &SessionId, track: EncodedTrack) -> Result<StreamEndpoint>;
 }
-pub trait EventSink: Send + Sync { fn emit(&self, ev: &Event) -> impl Future<Output = ()> + Send; }
+pub trait EventSink: Send + Sync { async fn emit(&self, ev: &Event) -> Result<()>; }
 pub trait Recorder: Send + Sync {
-    fn begin(&self, session: &SessionId) -> impl Future<Output = Result<RecordingId>> + Send;
-    fn append(&self, id: &RecordingId, item: RecordItem) -> impl Future<Output = Result<()>> + Send;
-    fn finish(&self, id: &RecordingId) -> impl Future<Output = Result<RecordingRef>> + Send;
+    async fn begin(&self, session: &SessionId) -> Result<RecordingId>;
+    async fn append(&self, id: &RecordingId, item: RecordItem) -> Result<()>;
+    async fn finish(&self, id: &RecordingId) -> Result<RecordingRef>;
 }
 ```
 

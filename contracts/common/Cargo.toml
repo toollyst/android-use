@@ -1,6 +1,6 @@
 # 버전은 contracts/common/VERSION 과 같아야 한다 (단일 원천: VERSION).
-# 루트 workspace가 없어도 단독으로 빌드되고, 나중에 workspace 멤버가 되어도 그대로 동작하도록
-# workspace 상속(`*.workspace = true`)을 쓰지 않는다.
+# 패키지 필드는 workspace 상속(`*.workspace = true`)을 쓰지 않는다.
+# 외부 의존의 버전은 루트 Cargo.toml `[workspace.dependencies]`가 단일 원천이다.
 [package]
 name = "droiduse-contracts-common"
 version = "0.1.0"
@@ -13,4 +13,4 @@ publish = false
 path = "src/lib.rs"
 
 [dependencies]
-
+futures-core = { workspace = true }

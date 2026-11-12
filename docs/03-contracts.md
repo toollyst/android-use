@@ -42,22 +42,22 @@ struct VmSpec {
     labels: Labels,                        // 불투명 map, 코어는 해석하지 않음
 }
 
-// 생성 경로와 인스턴스 제어를 분리한다.
-trait MachineFactory {
-    type Machine: Machine;
-    type Memory: MemorySource;
-    fn create(&self, spec: VmSpec) -> impl Future<Output = Result<Self::Machine>> + Send;
-    fn restore(&self, spec: VmSpec, meta: SnapshotMeta, mem: Self::Memory) -> impl Future<Output = Result<Self::Machine>> + Send;
+// 생성 경로와 인스턴스 제어를 분리해 둘 다 trait object(dyn)로 쓸 수 있게 한다.
+#[async_trait]
+trait MachineFactory: Send + Sync {
+    async fn create(&self, spec: VmSpec) -> Result<Box<dyn Machine>>;
+    async fn restore(&self, spec: VmSpec, meta: SnapshotMeta, mem: Box<dyn MemorySource>) -> Result<Box<dyn Machine>>;
 }
 
-trait Machine {
-    fn start(&self) -> impl Future<Output = Result<()>> + Send;
-    fn pause(&self) -> impl Future<Output = Result<()>> + Send;
-    fn resume(&self) -> impl Future<Output = Result<()>> + Send;
-    fn snapshot(&self, out: SnapshotSink) -> impl Future<Output = Result<SnapshotMeta>> + Send;
-    fn bump_generation(&self) -> impl Future<Output = Result<()>> + Send;   // VMGenID 갱신
-    fn destroy(self) -> impl Future<Output = Result<()>> + Send;
-    fn events(&self) -> EventStream<VmEvent>;
+#[async_trait]
+trait Machine: Send + Sync {
+    async fn start(&self) -> Result<()>;
+    async fn pause(&self) -> Result<()>;
+    async fn resume(&self) -> Result<()>;
+    async fn snapshot(&self, out: SnapshotSink) -> Result<SnapshotMeta>;
+    async fn bump_generation(&self) -> Result<()>;   // VMGenID 갱신
+    async fn destroy(self: Box<Self>) -> Result<()>;
+    fn events(&self) -> EventStream<VmEvent>;        // EventStream<T> = BoxStream<'static, Result<T>>
 }
 ```
 - VMM은 jail 안의 별도 프로세스다. runtime 쪽 구현은 `host/vmm/api`의 REST 클라이언트가 이 trait을 구현한다 (in-process 구현은 테스트용).
@@ -112,7 +112,7 @@ Restore.Notify    ← { generation, completed_steps[] }   // VMGenID 변경 후 
 ## instance
 services가 보는 "Android 인스턴스 하나".
 ```rust
-trait Instance {
+trait Instance: Send + Sync {
     fn id(&self) -> InstanceId;
     fn labels(&self) -> &Labels;
     fn state(&self) -> InstanceState;          // Creating | Booting | Ready | Paused | Snapshotting | Restoring | Stopped | Failed
@@ -124,9 +124,11 @@ trait Instance {
 }
 
 // guest 프레임 커밋 + device scanout 정확 매칭, 최근 N 프레임 보관
-trait FrameChannel {
+#[async_trait]
+trait FrameChannel: Send + Sync {
     fn subscribe(&self, display: u32) -> EventStream<Frame>;
-    fn get(&self, id: &FrameId) -> Result<Frame>;     // 링 버퍼에 없으면 FrameExpired. 추측해서 다른 프레임을 주지 않음
+    async fn get(&self, id: &FrameId, deadline: Instant) -> Result<Frame>;
+        // 매칭될 때까지 기다림. 이미 밀려났으면 FrameExpired, deadline이 지나면 Timeout. 추측해서 다른 프레임을 주지 않음
     fn latest(&self, display: u32) -> Result<Frame>;
 }
 struct Frame {
@@ -134,11 +136,12 @@ struct Frame {
     buffer: FrameBufferRef,      // shm 참조 (복사 없음)
 }
 
-trait SessionManager {
-    fn acquire(&self, req: SessionRequest) -> impl Future<Output = Result<Session>> + Send;   // 스냅샷 풀에서 할당
-    fn reset(&self, s: &Session) -> impl Future<Output = Result<()>> + Send;
-    fn release(&self, s: Session) -> impl Future<Output = Result<()>> + Send;
-    fn snapshot(&self, s: &Session, name: &str) -> impl Future<Output = Result<SnapshotRef>> + Send;
+#[async_trait]
+trait SessionManager: Send + Sync {
+    async fn acquire(&self, req: SessionRequest) -> Result<Session>;   // 스냅샷 풀에서 할당
+    async fn reset(&self, s: &Session) -> Result<()>;
+    async fn release(&self, s: Session) -> Result<()>;
+    async fn snapshot(&self, s: &Session, name: &str) -> Result<SnapshotRef>;
 }
 ```
 

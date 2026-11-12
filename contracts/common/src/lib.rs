@@ -14,7 +14,8 @@
 #![warn(missing_docs)]
 
 use std::collections::BTreeMap;
-use std::marker::PhantomData;
+
+use futures_core::stream::BoxStream;
 
 // ---------------------------------------------------------------------------
 // 에러
@@ -23,7 +24,7 @@ use std::marker::PhantomData;
 /// 계약 전반의 에러 코드.
 ///
 /// 현재 값은 `docs/04-adp.md` §5 "에러 코드" 목록 그대로다.
-/// `FrameChannel::get`의 `FrameExpired`(`docs/03-contracts.md` instance)도 이 목록의 값이다.
+/// `FrameChannel::get`의 `FrameExpired`·`Timeout`(`docs/03-contracts.md` instance)도 이 목록의 값이다.
 /// 추가는 하위호환, 제거·의미 변경은 major 증가.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -115,8 +116,34 @@ pub struct FrameId {
 
 /// 이벤트 스트림 (`Machine::events`, `Instance::events`, `FrameChannel::subscribe`).
 ///
-/// PLACEHOLDER: 문서는 이름만 정했다. 동기/비동기, 배압(backpressure), 지연 구독자 처리,
-/// 종료 의미는 미정이다. 지금은 이벤트 타입만 실어 나르는 표지(marker)다.
-// OPEN(crate): 비동기 스트림 trait(`futures-core`의 `Stream`)을 쓸지는 오너 결정.
-#[derive(Debug)]
-pub struct EventStream<T>(pub PhantomData<T>);
+/// `futures_core::Stream`이다. 구독은 기다리지 않고 이 스트림을 돌려주며, 연결 실패 같은
+/// 전달 실패는 `Err` 항목으로 온다. 스레드 사이로 옮길 수 있다(`Send`).
+///
+/// 배압(backpressure), 지연 구독자 처리, `Err` 뒤에 스트림이 계속되는지, 종료 의미는 미정이다.
+pub type EventStream<T> = BoxStream<'static, Result<T>>;
+
+/// 컴파일 전용 검사: `EventStream`은 `Stream`이고 `Send`·`Unpin`이다.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_core::Stream;
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
+
+    fn assert_stream<S: Stream<Item = Result<u8>> + Send + Unpin>(_: S) {}
+
+    /// 테스트 전용: 바로 끝나는 스트림.
+    struct Ended;
+    impl Stream for Ended {
+        type Item = Result<u8>;
+        fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+            Poll::Ready(None)
+        }
+    }
+
+    #[test]
+    fn event_stream_is_send_unpin_stream() {
+        let s: EventStream<u8> = Box::pin(Ended);
+        assert_stream(s);
+    }
+}
