@@ -128,6 +128,16 @@ trait Instance: Send + Sync {
     fn events(&self) -> EventStream<InstanceEvent>;
 }
 
+// Create, list and close; host/runtime implements it over an injected MachineFactory
+#[async_trait]
+trait InstanceManager: Send + Sync {
+    async fn create(&self, req: CreateInstance) -> Result<Arc<dyn Instance>>;   // answers once Ready; image and VM size are runtime settings
+    fn list(&self) -> Vec<Arc<dyn Instance>>;
+    fn get(&self, id: &InstanceId) -> Option<Arc<dyn Instance>>;
+    async fn close(&self, id: &InstanceId) -> Result<()>;                       // unknown id: TargetGone
+}
+struct CreateInstance { labels: Labels }
+
 // Exact matching of guest frame commits + device scanout, keeps the last N frames
 #[async_trait]
 trait FrameChannel: Send + Sync {
