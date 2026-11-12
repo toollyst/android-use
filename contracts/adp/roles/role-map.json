@@ -1,0 +1,45 @@
+{
+  "description": "Assigns UI.Node role, a WAI-ARIA 1.2 role name (https://www.w3.org/TR/wai-aria-1.2/ section 5.3). A node from source compose uses its Compose Role (androidx.compose.ui.semantics.Role) in composeRoles; any other node uses its accessibility class name (AccessibilityNodeInfo.getClassName(), which a View sets from View.getAccessibilityClassName()) in classNames, matched exactly with no subclass lookup. A node whose class name or Compose Role has no entry has no role (Node.role absent).",
+  "rule": "An Android class name maps to an ARIA role only when Chromium's ARIA-to-Android mapping sends exactly one WAI-ARIA 1.2 role to that class name: AXRoleToAndroidClassName gives the class name for each Chromium role, and Blink's kAriaRoles and kReverseRoles tables give the ARIA role name of each Chromium role. A class name reached from two or more ARIA roles is listed in ambiguous and has no entry. A Compose Role maps through the class name Compose reports for it (Role.toLegacyClassName); a Compose Role Compose reports without a class name has no entry.",
+  "sources": {
+    "chromiumClassName": "https://chromium.googlesource.com/chromium/src/+/refs/tags/139.0.7258.127/ui/accessibility/ax_assistant_structure.cc (AXRoleToAndroidClassName)",
+    "chromiumClassNameStrings": "https://chromium.googlesource.com/chromium/src/+/refs/tags/139.0.7258.127/ui/accessibility/platform/ax_android_constants.cc",
+    "chromiumAriaRoles": "https://chromium.googlesource.com/chromium/src/+/refs/tags/139.0.7258.127/third_party/blink/renderer/modules/accessibility/ax_object.cc (kAriaRoles, kReverseRoles)",
+    "composeClassName": "https://android.googlesource.com/platform/frameworks/support/+/dbcbf69cebe7686512389830b60da0735497ff04/compose/ui/ui/src/androidMain/kotlin/androidx/compose/ui/platform/SemanticsUtils.android.kt (Role.toLegacyClassName)",
+    "ariaRoles": "https://www.w3.org/TR/wai-aria-1.2/ section 5.3"
+  },
+  "classNames": [
+    { "className": "android.widget.Button", "role": "button", "chromiumRoles": ["kButton", "kPopUpButton", "kPdfActionableHighlight"] },
+    { "className": "android.widget.CheckBox", "role": "checkbox", "chromiumRoles": ["kCheckBox"] },
+    { "className": "android.widget.RadioButton", "role": "radio", "chromiumRoles": ["kRadioButton"] },
+    { "className": "android.widget.RadioGroup", "role": "radiogroup", "chromiumRoles": ["kRadioGroup"] },
+    { "className": "android.widget.SeekBar", "role": "slider", "chromiumRoles": ["kSlider"] },
+    { "className": "android.widget.Spinner", "role": "combobox", "chromiumRoles": ["kColorWell", "kComboBoxMenuButton", "kDate", "kDateTime", "kInputTime"] },
+    { "className": "android.widget.TabWidget", "role": "tablist", "chromiumRoles": ["kTabList"] },
+    { "className": "android.app.Dialog", "role": "dialog", "chromiumRoles": ["kDialog"] },
+    { "className": "android.app.AlertDialog", "role": "alertdialog", "chromiumRoles": ["kAlertDialog"] },
+    { "className": "android.widget.SearchView", "role": "search", "chromiumRoles": ["kSearch"] },
+    { "className": "android.widget.Image", "role": "img", "chromiumRoles": ["kCanvas", "kImage", "kSvgRoot"] },
+    { "className": "com.google.android.material.navigation.NavigationView", "role": "navigation", "chromiumRoles": ["kNavigation"] }
+  ],
+  "composeRoles": [
+    { "composeRole": "Button", "className": "android.widget.Button", "role": "button" },
+    { "composeRole": "Checkbox", "className": "android.widget.CheckBox", "role": "checkbox" },
+    { "composeRole": "RadioButton", "className": "android.widget.RadioButton", "role": "radio" },
+    { "composeRole": "DropdownList", "className": "android.widget.Spinner", "role": "combobox" }
+  ],
+  "ambiguous": [
+    { "className": "android.widget.EditText", "ariaRoles": ["combobox", "searchbox", "spinbutton", "textbox"] },
+    { "className": "android.widget.ToggleButton", "ariaRoles": ["button", "switch"] },
+    { "className": "android.widget.ProgressBar", "ariaRoles": ["meter", "progressbar"] },
+    { "className": "android.widget.GridView", "ariaRoles": ["grid", "table", "treegrid"] },
+    { "className": "android.widget.ListView", "ariaRoles": ["directory", "list", "listbox"] },
+    { "className": "android.view.MenuItem", "ariaRoles": ["menuitem", "menuitemcheckbox", "menuitemradio"] },
+    { "className": "android.view.View", "ariaRoles": [], "note": "The default of AXRoleToAndroidClassName: every Chromium role without its own case." }
+  ],
+  "noEntry": {
+    "classNames": ["android.widget.TextView", "android.widget.ImageView", "android.widget.NumberPicker", "android.webkit.WebView"],
+    "composeRoles": ["Switch", "Tab", "Image", "ValuePicker"],
+    "reason": "No WAI-ARIA 1.2 role reaches the class name in the Chromium mapping (TextView, ImageView, NumberPicker, WebView), or Compose reports the Role only as a roleDescription string (Switch, Tab) or through such a class name (Image: android.widget.ImageView, ValuePicker: android.widget.NumberPicker)."
+  }
+}
