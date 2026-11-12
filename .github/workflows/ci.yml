@@ -30,8 +30,12 @@ jobs:
           persist-credentials: false
       - name: Install pinned toolchain
         run: rustup show active-toolchain || rustup toolchain install
+      # --locked: 이 단계가 먼저 Cargo.lock을 고쳐 쓰면 뒤의 --locked 단계가 낡은 lock을 놓친다.
       - name: Layer rules
-        run: cargo xtask check-layers
+        run: cargo --locked xtask check-layers
+      - name: Patch lint
+        shell: bash
+        run: bash tools/patch/lint.sh
       - name: Format
         run: cargo fmt --check
       - name: Clippy

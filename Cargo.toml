@@ -1,7 +1,7 @@
 # droid-use Cargo workspace root.
 #
 # members:
-#  - build/*: repo tooling (xtask entry point, layer checker). Not a layer.
+#  - build/*: repo tooling (xtask entry point, layer checker, patch lint). Not a layer.
 #  - contracts/*: every contract crate is picked up automatically.
 #    Cargo refuses to load the workspace when a directory matched by a member
 #    glob has no Cargo.toml, so contract directories that are not (yet) crates
@@ -21,6 +21,7 @@
 resolver = "3"
 members = [
     "build/checklayers",
+    "build/patchlint",
     "build/xtask",
     "contracts/*",
 ]
@@ -45,7 +46,11 @@ async-trait = "0.1.92"
 bytes = { version = "1.12.1", default-features = false }
 futures-core = { version = "0.3.34", default-features = false, features = ["alloc"] }
 futures-io = "0.3.34"
+# build/ 툴링 전용.
+# diffy: git diff 파서 (build/patchlint). mailparse: RFC 5322/2047 헤더 파서 (build/patchlint).
+diffy = { version = "0.5.2", default-features = false }
 ignore = "0.4"
+mailparse = "0.18.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tempfile = "3"
