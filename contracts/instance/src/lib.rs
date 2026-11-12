@@ -158,16 +158,13 @@ pub struct Session {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use droiduse_contracts_common::Error;
+    use droiduse_contracts_common::{Error, ErrorCode};
 
     fn assert_send<T: Send>(_: T) {}
     fn assert_send_sync<T: Send + Sync + ?Sized>() {}
 
     fn unimplemented_err() -> Error {
-        Error {
-            code: None,
-            message: String::new(),
-        }
+        Error::new(ErrorCode::Unimplemented, "compile-only dummy")
     }
 
     struct DummySessions;
