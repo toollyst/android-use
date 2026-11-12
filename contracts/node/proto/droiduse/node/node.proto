@@ -7,7 +7,10 @@
 //
 // Metadata keys (gRPC metadata, lowercase):
 //   traceparent, tracestate   W3C Trace Context. The trace that runs through the layers (docs/02-architecture.md §5).
-//                             Any call can carry them. The same as guest_link.
+//                             Every call carries traceparent; tracestate is optional. A missing or invalid
+//                             traceparent makes the receiver start a new trace and drop tracestate (W3C Trace
+//                             Context https://www.w3.org/TR/trace-context/ sections 3.2, 3.3 and 4.3). The same
+//                             rule as guest_link.
 //
 // This file holds only what the documentation has fixed down to the shape of the fields. Fields and RPCs that the
 // documentation only names are left out and recorded in "OPEN:" comments in their place. Field numbers are only added,
