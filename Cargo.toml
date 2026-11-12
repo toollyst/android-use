@@ -25,6 +25,7 @@ members = [
     "build/patchlint",
     "build/xtask",
     "contracts/*",
+    "host/entrypoints/adp_server",
     "host/runtime/auth",
     "host/runtime/instance",
     "host/vmm/api",
@@ -63,6 +64,18 @@ tokio = { version = "1.54.1", default-features = false, features = ["macros", "r
 # comparison); sha2 and base64 below and above.
 getrandom = "0.4.3"
 subtle = { version = "2.6.1", default-features = false, features = ["std"] }
+# host/entrypoints/adp_server (owner decision: tokio, hyper 1 for the HTTP/1.1 upgrade, tokio-tungstenite
+# for WebSocket framing, tracing): hyper-util and http-body-util (hyper's tokio glue and response
+# bodies), futures-util (Stream/Sink of the WebSocket), semver (Connection.hello), clap (flags and
+# environment), tracing-subscriber (the stderr log).
+clap = { version = "4.6.7", features = ["derive", "env"] }
+futures-util = { version = "0.3.34", default-features = false, features = ["sink", "std"] }
+http-body-util = "0.1.5"
+hyper = { version = "1.12.0", features = ["http1", "server"] }
+hyper-util = { version = "0.1.21", features = ["tokio"] }
+semver = "1.0.28"
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["ansi", "fmt", "json", "std"] }
 # build/ tooling only.
 # build/codegen: prost-build, prost-types (proto → Rust messages, reading protoc's FileDescriptorSet),
 # ureq (pinned protoc download, rustls), zip (unpacking the official protoc release zip), sha2 (checking
