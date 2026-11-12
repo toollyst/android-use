@@ -35,6 +35,13 @@ impl Fx {
             if lt.is_file() {
                 fs::copy(&lt, d.join("LAYER.toml")).unwrap();
             }
+            // The first-level module directories (empty): LAYER.toml [allow_siblings] names them.
+            for e in fs::read_dir(real.join(&l.path)).unwrap() {
+                let e = e.unwrap();
+                if e.file_type().unwrap().is_dir() {
+                    fs::create_dir_all(d.join(e.file_name())).unwrap();
+                }
+            }
         }
         Fx {
             dir,
