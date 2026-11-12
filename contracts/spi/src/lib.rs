@@ -14,7 +14,8 @@
 //!
 //! 비동기 메서드는 `async-trait`으로 선언한다. 모든 SPI trait은 trait object(dyn)로 주입할 수
 //! 있고, 특정 async 런타임을 가정하지 않으며, `Send` future를 돌려준다.
-//! future를 drop하면 그 호출은 취소된다.
+//! future를 drop하면 그 호출은 취소된다. 읽기 호출(메서드 문서에 표시)은 drop에 부작용이 없다.
+//! 쓰기 호출(`put`, `delete`, `commit`, `connect`, `publish`, `emit`, `Recorder`)의 취소 의미는 미정이다.
 //!
 //! `PLACEHOLDER`로 표시한 타입은 문서가 이름만 정한 것이다. 구조와 의미는 미정이다.
 
@@ -35,9 +36,9 @@ use futures_io::{AsyncRead, AsyncWrite};
 pub trait SnapshotStore: Send + Sync {
     /// 스냅샷을 저장하고 참조를 돌려준다.
     async fn put(&self, meta: &SnapshotMeta, parts: SnapshotParts) -> Result<SnapshotRef>;
-    /// 스냅샷을 연다. 메타 + 디바이스 state + `MemorySource` 팩토리.
+    /// 스냅샷을 연다. 메타 + 디바이스 state + `MemorySource` 팩토리. 읽기 호출이라 drop(취소)에 부작용이 없다.
     async fn open(&self, r: &SnapshotRef) -> Result<SnapshotHandle>;
-    /// selector에 맞는 스냅샷 목록.
+    /// selector에 맞는 스냅샷 목록. 읽기 호출이라 drop(취소)에 부작용이 없다.
     async fn list(&self, selector: &LabelSelector) -> Result<Vec<SnapshotRef>>;
     /// 스냅샷을 지운다.
     async fn delete(&self, r: &SnapshotRef) -> Result<()>;
@@ -62,9 +63,9 @@ pub trait MemorySource: Send + Sync {
     /// `offset`부터 정확히 `len` 바이트를 읽어 소유 버퍼로 돌려준다.
     ///
     /// 버퍼를 호출자가 빌려주지 않으므로 완료 기반 I/O(io_uring, IOCP)에서도 future를 drop해
-    /// 취소할 수 있다.
+    /// 취소할 수 있다. 읽기 호출이라 drop(취소)에 부작용이 없다.
     async fn read_at(&self, offset: u64, len: usize) -> Result<Bytes>;
-    /// 워킹셋 힌트.
+    /// 워킹셋 힌트. 읽기 호출이라 drop(취소)에 부작용이 없다.
     async fn prefetch(&self, ranges: &[std::ops::Range<u64>]);
 }
 
@@ -84,7 +85,7 @@ pub trait ProfileStore: Send + Sync {
 /// 인증. 사용 위치: `host/entrypoints/adp_server`, `host/entrypoints/node`. 코어 기본: 로컬 토큰.
 #[async_trait]
 pub trait Authenticator: Send + Sync {
-    /// 자격 증명을 검증하고 주체를 돌려준다.
+    /// 자격 증명을 검증하고 주체를 돌려준다. 읽기 호출이라 drop(취소)에 부작용이 없다.
     async fn authenticate(&self, cred: &Credential, ch: &ChannelCtx) -> Result<Principal>;
 }
 
@@ -93,14 +94,14 @@ pub trait Authenticator: Send + Sync {
 pub trait Authorizer: Send + Sync {
     /// `who`가 `on`에 대해 `action`을 해도 되는지 판단한다.
     ///
-    /// **fail closed**: 호출자는 `Err`와 취소된 호출(future drop)을 모두 거부로 다룬다.
+    /// **fail closed**: 호출자는 `Err`와 취소된 호출(future drop)을 모두 거부로 다룬다. 읽기 호출이라 drop(취소)에 부작용이 없다.
     async fn authorize(&self, who: &Principal, action: &Action, on: &Resource) -> Result<Decision>;
 }
 
 /// 정책 공급. 사용 위치: `host/services/network`, `host/runtime/resources`. 코어 기본: 정적 설정.
 #[async_trait]
 pub trait PolicyProvider: Send + Sync {
-    /// 세션 정책 (egress, 리소스 한도, TLS 가시성 등).
+    /// 세션 정책 (egress, 리소스 한도, TLS 가시성 등). 읽기 호출이라 drop(취소)에 부작용이 없다.
     async fn session_policy(&self, labels: &Labels) -> Result<SessionPolicy>;
 }
 
@@ -118,7 +119,7 @@ pub trait EgressUpstream: Send + Sync {
 /// 기기 프로필 공급 (기종·로케일·시간대·위치). 사용 위치: `host/runtime/identity`.
 #[async_trait]
 pub trait DeviceProfileProvider: Send + Sync {
-    /// labels에 맞는 프로필.
+    /// labels에 맞는 프로필. 읽기 호출이라 drop(취소)에 부작용이 없다.
     async fn profile(&self, labels: &Labels) -> Result<DeviceProfile>;
 }
 

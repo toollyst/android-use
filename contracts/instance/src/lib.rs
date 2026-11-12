@@ -58,7 +58,7 @@ pub enum InstanceState {
     Restoring,
     /// 정지.
     Stopped,
-    /// 실패.
+    /// 실패. 수명주기 호출이 도중에 취소된 인스턴스도 여기로 온다. 자원 정리는 runtime이 맡는다.
     Failed,
 }
 
@@ -93,7 +93,7 @@ pub trait FrameChannel: Send + Sync {
     fn subscribe(&self, display: u32) -> EventStream<Frame>;
     /// 정확히 그 프레임. 아직 scanout과 매칭되지 않았으면 매칭되거나 `deadline`이 지날 때까지
     /// 기다린다. 이미 링 버퍼에서 밀려났으면 `FrameExpired`, `deadline`이 지나면 `Timeout`.
-    /// 추측해서 다른 프레임을 주지 않는다.
+    /// 추측해서 다른 프레임을 주지 않는다. 읽기 호출이라 drop(취소)에 부작용이 없다.
     async fn get(&self, id: &FrameId, deadline: Instant) -> Result<Frame>;
     /// 디스플레이의 최신 프레임.
     fn latest(&self, display: u32) -> Result<Frame>;
@@ -119,6 +119,10 @@ pub struct FrameBufferRef {}
 // ---------------------------------------------------------------------------
 
 /// 세션 풀.
+///
+/// **취소**: 비동기 메서드(수명주기 호출)가 도중에 취소되면(future drop) 대상 인스턴스는
+/// `Failed`로 끝나고 자원 정리는 runtime이 맡는다. 반쯤 된 인스턴스가 `Ready`로 보이거나
+/// 세션으로 넘겨지는 일은 없다.
 #[async_trait]
 pub trait SessionManager: Send + Sync {
     /// 스냅샷 풀에서 할당한다.

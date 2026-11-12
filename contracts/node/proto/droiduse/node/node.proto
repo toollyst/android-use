@@ -1,0 +1,63 @@
+// node 계약: control plane ↔ node 데몬 (gRPC over TLS, 인증). 상세: docs/03-contracts.md node.
+//
+// 버전은 contracts/node/VERSION (semver) 하나가 원천이다.
+//
+// 이 파일에는 문서가 필드의 형태까지 정한 것만 있다. 문서가 이름만 정한 필드와 RPC는 넣지 않았고
+// 해당 위치에 "OPEN:" 주석으로 남겼다. 필드 번호는 추가만 하고 재사용하지 않는다.
+// instance_id, snapshot_ref는 instance·spi 계약의 InstanceId, SnapshotRef와 같은 불투명 문자열이다.
+//
+// OPEN: Node.Info, Node.Health, Instance.Create, Instance.Destroy / Get / List, Session.Acquire /
+//       Reset / Release, Events.Stream은 필수 필드의 형태가 정해지지 않아 넣지 않았다.
+// OPEN: Adp.Endpoint { session_id } → { url, token }은 토큰의 타입이 정해지지 않아 넣지 않았다.
+//       인증 정보를 일부 필드만으로 두지 않는다.
+// OPEN: trace_id를 gRPC 메타데이터로 실을지 메시지 필드로 실을지 정해지지 않았다.
+
+syntax = "proto3";
+
+package droiduse.node;
+
+// 스냅샷 내보내기·가져오기 (SnapshotStore로).
+service Snapshot {
+  // Snapshot.Export: 인스턴스를 스냅샷으로 내보낸다.
+  rpc Export(SnapshotExport) returns (SnapshotExportResult);
+  // Snapshot.Import: 스냅샷을 가져온다.
+  rpc Import(SnapshotImport) returns (SnapshotImportResult);
+}
+
+// 디버그. CTS/VTS용이며 ADP·MCP에는 노출하지 않는다.
+service Debug {
+  // Debug.SetAdb: 인스턴스의 adbd 켜기·끄기.
+  rpc SetAdb(DebugSetAdb) returns (DebugSetAdbResult);
+}
+
+// Snapshot.Export 요청.
+message SnapshotExport {
+  // 내보낼 인스턴스.
+  string instance_id = 1;
+}
+
+// Snapshot.Export 결과.
+message SnapshotExportResult {
+  // 저장된 스냅샷 참조.
+  string snapshot_ref = 1;
+}
+
+// Snapshot.Import 요청.
+message SnapshotImport {
+  // 가져올 스냅샷 참조.
+  string snapshot_ref = 1;
+}
+
+// Snapshot.Import 결과. 문서에 결과 값이 없다.
+message SnapshotImportResult {}
+
+// Debug.SetAdb 요청.
+message DebugSetAdb {
+  // 대상 인스턴스.
+  string instance_id = 1;
+  // 켜면 true.
+  bool enabled = 2;
+}
+
+// Debug.SetAdb 결과. 문서에 결과 값이 없다.
+message DebugSetAdbResult {}

@@ -1,0 +1,97 @@
+// guest_link 계약: 호스트 ↔ 게스트(adpd) vsock 프로토콜. 상세: docs/03-contracts.md guest_link.
+//
+// 버전은 contracts/guest_link/VERSION (semver) 하나가 원천이다.
+//
+// 이 파일에는 문서가 필드의 형태까지 정한 것만 있다. 문서가 이름만 정한 필드와 메시지는 넣지 않았고
+// 해당 위치에 "OPEN:" 주석으로 남겼다. 필드 번호는 추가만 하고 재사용하지 않는다.
+//
+// OPEN: 메시지 봉투(메시지 종류 구분, 요청·응답 대응, 메시지 헤더의 trace_id, 크기 제한)와
+//       vsock 위 프레이밍(gRPC 여부 포함)은 정해지지 않았다.
+// OPEN: Auth { session_token }, Auth.Rebind { prev_token, vmgenid } → { session_token }은
+//       토큰의 타입이 정해지지 않아 넣지 않았다. 인증 메시지를 일부 필드만으로 두지 않는다.
+// OPEN: Inspect.Snapshot(TreeSnapshot), Inspect.Diff(TreeDiff), Frame.Committed, Action.Perform,
+//       App.*, App.Lifecycle, Log.Stream, Restore.Notify는 필수 필드의 형태가 정해지지 않아 넣지 않았다.
+
+syntax = "proto3";
+
+package droiduse.guest_link;
+
+// 트리·스크린샷·이벤트의 기준 프레임 (docs/04-adp.md §3.1, docs/03-contracts.md Frame.Committed).
+message FrameId {
+  // 디스플레이 번호.
+  uint32 display = 1;
+  // 앱 쪽 Choreographer vsync ID.
+  int64 vsync_id = 2;
+  // 합성 쪽 SurfaceFlinger 프레임 번호.
+  uint64 sf_frame = 3;
+}
+
+// 인스펙션 데이터 소스 (docs/04-adp.md §3.4 source).
+enum Source {
+  // 값 없음. 받는 쪽은 거부한다.
+  SOURCE_UNSPECIFIED = 0;
+  // View 트리.
+  SOURCE_VIEW = 1;
+  // 접근성 트리.
+  SOURCE_A11Y = 2;
+  // Compose 시맨틱 트리.
+  SOURCE_COMPOSE = 3;
+  // WebView.
+  SOURCE_WEBVIEW = 4;
+  // SurfaceFlinger 레이어.
+  SOURCE_LAYER = 5;
+}
+
+// Hello: 연결 직후 버전 협상 (필수).
+// OPEN: capabilities[] (원소 타입과 값 집합 미정), 응답 형태 미정.
+message Hello {
+  // guest_link 프로토콜 버전 (semver, contracts/guest_link/VERSION).
+  string protocol_version = 1;
+  // 게스트 빌드 fingerprint (Build.FINGERPRINT).
+  string build_fingerprint = 2;
+}
+
+// Inspect.Subscribe: 인스펙션 구독.
+// OPEN: throttle_ms (정수 폭 미정).
+message InspectSubscribe {
+  // 구독할 소스.
+  repeated Source sources = 1;
+  // 구독할 디스플레이 번호 (FrameId.display).
+  repeated uint32 displays = 2;
+}
+
+// Inspect.Node: 노드 하나 요청.
+// OPEN: 결과 Node의 형태 미정.
+message InspectNode {
+  // 노드 ID (불투명 문자열, docs/04-adp.md §3.2).
+  string node_id = 1;
+}
+
+// WebView 디버깅 타깃 하나 (WebView.Targets 결과의 원소).
+message WebViewTarget {
+  // 타깃 ID.
+  string target_id = 1;
+  // 패키지 이름.
+  string pkg = 2;
+  // 현재 URL.
+  string url = 3;
+}
+
+// WebView.Targets 결과.
+message WebViewTargetsResult {
+  // 타깃 목록.
+  repeated WebViewTarget targets = 1;
+}
+
+// WebView.Attach: 타깃에 붙는다.
+// OPEN: 결과인 CDP 프록시 스트림의 형태 미정.
+message WebViewAttach {
+  // 붙을 타깃 ID (WebViewTarget.target_id).
+  string target_id = 1;
+}
+
+// Debug.SetAdb: adbd 켜기·끄기. 호스트 인가 전용, CTS/VTS용.
+message DebugSetAdb {
+  // 켜면 true.
+  bool enabled = 1;
+}

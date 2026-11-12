@@ -12,8 +12,6 @@
 #  escape the layer rules.
 #
 # exclude:
-#  - contracts/{adp,guest_link,keymint,node}: IDL/schema contracts whose format
-#    is undecided; no Cargo.toml yet. Remove the entry once one becomes a crate.
 #  - contracts/{codegen,compat}: generator config and compat fixtures.
 #  - third_party: upstream code is not ours (ADR-0003); it is never a workspace
 #    member and is not linted as our code by clippy.
@@ -26,12 +24,8 @@ members = [
     "contracts/*",
 ]
 exclude = [
-    "contracts/adp",
     "contracts/codegen",
     "contracts/compat",
-    "contracts/guest_link",
-    "contracts/keymint",
-    "contracts/node",
     "third_party",
 ]
 

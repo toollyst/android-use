@@ -128,6 +128,10 @@ pub struct ShmRegionSpec {}
 // ---------------------------------------------------------------------------
 
 /// VM 생성 경로. `Machine`과 분리해 둘 다 trait object(dyn)로 쓸 수 있게 한다.
+///
+/// **취소**: `create`·`restore`가 도중에 취소되면(future drop) 만들던 VM은 실패한 것이다.
+/// 호출자에게 VM이 돌아가지 않고, 반쯤 만든 VMM 프로세스와 자원의 정리는 runtime이 맡는다.
+/// 그 인스턴스는 `Failed`로 끝난다 (instance 계약).
 #[async_trait]
 pub trait MachineFactory: Send + Sync {
     /// 새 VM을 만든다.
@@ -142,6 +146,11 @@ pub trait MachineFactory: Send + Sync {
 }
 
 /// VM 하나의 제어.
+///
+/// **취소**: 비동기 메서드(수명주기 호출)가 도중에 취소되면(future drop) 이 VM은 실패한 것이다.
+/// 다시 시작·재개하지 않고 실행 중으로 보고하지 않으며, 정리는 runtime이 맡는다.
+/// 그 인스턴스는 `Failed`로 끝나고 반쯤 된 VM이 `Ready`로 보이는 일은 없다 (instance 계약).
+/// `events`는 구독만 하므로 drop에 부작용이 없다.
 #[async_trait]
 pub trait Machine: Send + Sync {
     /// 시작한다.
