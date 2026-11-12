@@ -57,7 +57,7 @@
 JSON-RPC style, like CDP. The definition file is `contracts/adp/protocol.json`.
 - `id` is an integer (below 2^53) and does not collide among requests in flight on a connection.
 - `sessionId` is absent on connection-level calls (`Connection.*`, `Target.*` outside a session) and is mandatory on every message to a session.
-- An error is `{ "id", "error": { "code": "<error code name>", "message", "data"? } }`. The codes are the error code list below (the same code space as `ErrorCode` in `contracts/common`).
+- An error is `{ "id", "error": { "code": "<error code name>", "message", "data"? } }`. `data.reason`, when present, names the component and operation that answered (`<component>#<operation>`, for example `host/vmm/api#create`); it is for diagnosis, a client decides by `code`. The codes are the error code list below (the same code space as `ErrorCode` in `contracts/common`).
 - 64-bit integers (`vsyncId`, `sfFrame`, etc.) are sent as decimal strings in JSON; integers of 32 bits or less are sent as numbers.
 - In a binary WebSocket message, the first 8 bytes (a big-endian unsigned integer) are the `id` of the request the message belongs to, and the rest is the content. The server sends it before the response with the same `id`. The client sends exactly one after each `App.uploadChunk` request, and the server responds after receiving it (also when it rejects). A client binary message with no matching request closes the connection with status code 1002 (RFC 6455 §7.4.1).
 - Authentication: the `Authorization: Bearer` header of the WebSocket upgrade (RFC 6750), or a first message `Connection.auth`. Before authentication every other message is rejected with `UNAUTHENTICATED`. Tokens in the URL query string are not accepted. Both paths are verified by the `Authenticator` SPI. Authentication happens once per connection. `Connection.auth` on an authenticated connection is `INVALID_REQUEST`; to change credentials, open a new connection.
@@ -113,7 +113,7 @@ type Rect = { x: number; y: number; w: number; h: number };
 | Domain | Commands | Events |
 |---|---|---|
 | `Connection` | `auth(token)`, `hello(protocolVersion)` | - |
-| `Target` | `getTargets` (instances, displays, windows, processes, WebViews; only targets the principal can attach to), `attachToTarget(targetId)` → `sessionId`, `detachFromTarget(sessionId)` | `targetCreated/Destroyed`, `detachedFromTarget(sessionId, reason)` |
+| `Target` | `createTarget` → `targetId` (a new instance, from server defaults), `closeTarget(targetId)`, `getTargets` (instances, displays, windows, processes, WebViews; only targets the principal can attach to), `attachToTarget(targetId)` → `sessionId`, `detachFromTarget(sessionId)` | `targetCreated/Destroyed`, `detachedFromTarget(sessionId, reason)` |
 | `UI` | `getTree(sources, depth, windowId?)`, `querySelector(selector, frameId?)` / `querySelectorAll(selector, frameId?)` → `{frameId, nodeIds}`, `getNode(nodeId)` → `{frameId, node}`, `describe(id)` | `treeMutated`, `windowChanged`, `focusChanged`, `imeChanged` |
 | `Accessibility` | `getFullAXTree`, `performAction(nodeId, action, arguments?)` (`AccessibilityNodeInfo` actions and `ACTION_ARGUMENT_*` arguments, `resolveOn`) | - |
 | `Input` | Touch: `dispatchTouch(type, pointers, actionPointerId?)` (MotionEvent actions) / key: `dispatchKey(type, keyCode)` (`KEYCODE_*` names) / text: `insertText(text)` / node: `click(nodeId, method?)`, `longClick(nodeId, method?)`, `setText`, `scrollTo`, `scrollBy`, `swipe` (all with `resolveOn`) | - |
@@ -151,6 +151,7 @@ xpath://*[@resourceId="..."]
 | `INVALID_REQUEST` | The envelope is wrong: malformed, an `id` that collides with a request in flight, a `sessionId` scope violation, a `sessionId` not on the connection, a session of a target type that does not accept it, a message the connection state does not allow (a command before `hello`, a second `hello`, `auth` on an authenticated connection, a concurrent second `uploadChunk` for one upload, a `createUpload` beyond the per-session upload limit) |
 | `METHOD_NOT_FOUND` | Unknown method |
 | `INVALID_PARAMS` | The arguments do not follow the definition: a required value is missing, a type or enum value does not match, an unknown union `kind`, a selector syntax error or unknown engine, an unknown diff format |
+| `UNIMPLEMENTED` | The command exists in the protocol version, but the server, or the layer that answers it, has not built it yet |
 
 ## 6. Transport path
 ```
