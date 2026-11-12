@@ -42,19 +42,21 @@ struct VmSpec {
     labels: Labels,                        // 불투명 map, 코어는 해석하지 않음
 }
 
-// 생성 경로와 인스턴스 제어를 분리해 둘 다 trait object(dyn)로 쓸 수 있게 한다.
+// 생성 경로와 인스턴스 제어를 분리한다.
 trait MachineFactory {
-    fn create(&self, spec: VmSpec) -> Result<Box<dyn Machine>>;
-    fn restore(&self, spec: VmSpec, meta: SnapshotMeta, mem: Box<dyn MemorySource>) -> Result<Box<dyn Machine>>;
+    type Machine: Machine;
+    type Memory: MemorySource;
+    fn create(&self, spec: VmSpec) -> impl Future<Output = Result<Self::Machine>> + Send;
+    fn restore(&self, spec: VmSpec, meta: SnapshotMeta, mem: Self::Memory) -> impl Future<Output = Result<Self::Machine>> + Send;
 }
 
 trait Machine {
-    fn start(&self) -> Result<()>;
-    fn pause(&self) -> Result<()>;
-    fn resume(&self) -> Result<()>;
-    fn snapshot(&self, out: SnapshotSink) -> Result<SnapshotMeta>;
-    fn bump_generation(&self) -> Result<()>;   // VMGenID 갱신
-    fn destroy(self: Box<Self>) -> Result<()>;
+    fn start(&self) -> impl Future<Output = Result<()>> + Send;
+    fn pause(&self) -> impl Future<Output = Result<()>> + Send;
+    fn resume(&self) -> impl Future<Output = Result<()>> + Send;
+    fn snapshot(&self, out: SnapshotSink) -> impl Future<Output = Result<SnapshotMeta>> + Send;
+    fn bump_generation(&self) -> impl Future<Output = Result<()>> + Send;   // VMGenID 갱신
+    fn destroy(self) -> impl Future<Output = Result<()>> + Send;
     fn events(&self) -> EventStream<VmEvent>;
 }
 ```
@@ -113,7 +115,7 @@ services가 보는 "Android 인스턴스 하나".
 trait Instance {
     fn id(&self) -> InstanceId;
     fn labels(&self) -> &Labels;
-    fn state(&self) -> InstanceState;          // Creating | Booting | Ready | Paused | Restoring | Stopped | Failed
+    fn state(&self) -> InstanceState;          // Creating | Booting | Ready | Paused | Snapshotting | Restoring | Stopped | Failed
     fn guest(&self) -> &dyn GuestChannel;      // guest_link 클라이언트
     fn frames(&self) -> &dyn FrameChannel;     // frameId가 매칭된 scanout 프레임
     fn input(&self) -> &dyn InputChannel;      // host/devices/input 이벤트 주입
@@ -133,10 +135,10 @@ struct Frame {
 }
 
 trait SessionManager {
-    fn acquire(&self, req: SessionRequest) -> Result<Session>;   // 스냅샷 풀에서 할당
-    fn reset(&self, s: &Session) -> Result<()>;
-    fn release(&self, s: Session) -> Result<()>;
-    fn snapshot(&self, s: &Session, name: &str) -> Result<SnapshotRef>;
+    fn acquire(&self, req: SessionRequest) -> impl Future<Output = Result<Session>> + Send;   // 스냅샷 풀에서 할당
+    fn reset(&self, s: &Session) -> impl Future<Output = Result<()>> + Send;
+    fn release(&self, s: Session) -> impl Future<Output = Result<()>> + Send;
+    fn snapshot(&self, s: &Session, name: &str) -> impl Future<Output = Result<SnapshotRef>> + Send;
 }
 ```
 

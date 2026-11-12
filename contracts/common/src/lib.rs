@@ -117,5 +117,6 @@ pub struct FrameId {
 ///
 /// PLACEHOLDER: 문서는 이름만 정했다. 동기/비동기, 배압(backpressure), 지연 구독자 처리,
 /// 종료 의미는 미정이다. 지금은 이벤트 타입만 실어 나르는 표지(marker)다.
+// OPEN(crate): 비동기 스트림 trait(`futures-core`의 `Stream`)을 쓸지는 오너 결정.
 #[derive(Debug)]
 pub struct EventStream<T>(pub PhantomData<T>);

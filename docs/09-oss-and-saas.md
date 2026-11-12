@@ -33,43 +33,43 @@
 ### 시그니처 초안
 ```rust
 pub trait SnapshotStore: Send + Sync {
-    fn put(&self, meta: &SnapshotMeta, parts: SnapshotParts) -> Result<SnapshotRef>;
-    fn open(&self, r: &SnapshotRef) -> Result<SnapshotHandle>;   // 메타 + 디바이스 state + MemorySource 팩토리
-    fn list(&self, selector: &LabelSelector) -> Result<Vec<SnapshotRef>>;
-    fn delete(&self, r: &SnapshotRef) -> Result<()>;
+    fn put(&self, meta: &SnapshotMeta, parts: SnapshotParts) -> impl Future<Output = Result<SnapshotRef>> + Send;
+    fn open(&self, r: &SnapshotRef) -> impl Future<Output = Result<SnapshotHandle>> + Send;   // 메타 + 디바이스 state + MemorySource 팩토리
+    fn list(&self, selector: &LabelSelector) -> impl Future<Output = Result<Vec<SnapshotRef>>> + Send;
+    fn delete(&self, r: &SnapshotRef) -> impl Future<Output = Result<()>> + Send;
 }
 pub trait MemorySource: Send + Sync {
     fn len(&self) -> u64;
-    fn read_at(&self, offset: u64, buf: &mut [u8]) -> Result<()>;
-    fn prefetch(&self, ranges: &[std::ops::Range<u64>]);          // 워킹셋 힌트
+    fn read_at(&self, offset: u64, buf: &mut [u8]) -> impl Future<Output = Result<()>> + Send;
+    fn prefetch(&self, ranges: &[std::ops::Range<u64>]) -> impl Future<Output = ()> + Send;        // 워킹셋 힌트
 }
 pub trait ProfileStore: Send + Sync {
-    fn open(&self, id: &ProfileId) -> Result<DiskLayer>;
-    fn commit(&self, id: &ProfileId, layer: DiskLayer) -> Result<()>;
+    fn open(&self, id: &ProfileId) -> impl Future<Output = Result<DiskLayer>> + Send;
+    fn commit(&self, id: &ProfileId, layer: DiskLayer) -> impl Future<Output = Result<()>> + Send;
 }
 pub trait Authenticator: Send + Sync {
-    fn authenticate(&self, cred: &Credential, ch: &ChannelCtx) -> Result<Principal>;
+    fn authenticate(&self, cred: &Credential, ch: &ChannelCtx) -> impl Future<Output = Result<Principal>> + Send;
 }
 pub trait Authorizer: Send + Sync {
-    fn authorize(&self, who: &Principal, action: &Action, on: &Resource) -> Decision;
+    fn authorize(&self, who: &Principal, action: &Action, on: &Resource) -> impl Future<Output = Decision> + Send;
 }
 pub trait PolicyProvider: Send + Sync {
-    fn session_policy(&self, labels: &Labels) -> Result<SessionPolicy>;   // egress, 리소스 한도, TLS 가시성 등
+    fn session_policy(&self, labels: &Labels) -> impl Future<Output = Result<SessionPolicy>> + Send;   // egress, 리소스 한도, TLS 가시성 등
 }
 pub trait EgressUpstream: Send + Sync {
-    fn connect(&self, dst: &Destination, flow: &FlowCtx) -> Result<Box<dyn Conn>>;
+    fn connect(&self, dst: &Destination, flow: &FlowCtx) -> impl Future<Output = Result<Box<dyn Conn>>> + Send;
 }
 pub trait DeviceProfileProvider: Send + Sync {
-    fn profile(&self, labels: &Labels) -> Result<DeviceProfile>;
+    fn profile(&self, labels: &Labels) -> impl Future<Output = Result<DeviceProfile>> + Send;
 }
 pub trait StreamTransport: Send + Sync {
-    fn publish(&self, session: &SessionId, track: EncodedTrack) -> Result<StreamEndpoint>;
+    fn publish(&self, session: &SessionId, track: EncodedTrack) -> impl Future<Output = Result<StreamEndpoint>> + Send;
 }
-pub trait EventSink: Send + Sync { fn emit(&self, ev: &Event); }
+pub trait EventSink: Send + Sync { fn emit(&self, ev: &Event) -> impl Future<Output = ()> + Send; }
 pub trait Recorder: Send + Sync {
-    fn begin(&self, session: &SessionId) -> Result<RecordingId>;
-    fn append(&self, id: &RecordingId, item: RecordItem) -> Result<()>;
-    fn finish(&self, id: &RecordingId) -> Result<RecordingRef>;
+    fn begin(&self, session: &SessionId) -> impl Future<Output = Result<RecordingId>> + Send;
+    fn append(&self, id: &RecordingId, item: RecordItem) -> impl Future<Output = Result<()>> + Send;
+    fn finish(&self, id: &RecordingId) -> impl Future<Output = Result<RecordingRef>> + Send;
 }
 ```
 

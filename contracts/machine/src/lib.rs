@@ -9,6 +9,9 @@
 //! VMM은 jail 안의 별도 프로세스다. runtime 쪽 구현은 `host/vmm/api`의 REST 클라이언트가 이 trait을
 //! 구현한다 (in-process 구현은 테스트용). 그 확장 REST API의 스키마는 이 crate에 없다 (미정).
 //!
+//! 비동기 메서드는 특정 async 런타임을 가정하지 않고 `Send` future를 돌려준다.
+//! future를 drop하면 그 호출은 취소된다.
+//!
 //! `PLACEHOLDER`로 표시한 타입은 문서가 이름만 정한 것이다. 구조와 의미는 미정이다.
 
 #![forbid(unsafe_code)]
@@ -123,34 +126,44 @@ pub struct ShmRegionSpec {}
 // 제어
 // ---------------------------------------------------------------------------
 
-/// VM 생성 경로. `Machine`과 분리해 둘 다 trait object(dyn)로 쓸 수 있게 한다.
+/// VM 생성 경로.
+// OPEN(crate): 문서는 `MachineFactory`와 `Machine`을 둘 다 trait object(dyn)로 쓰려 했다
+// (`Box<dyn Machine>`, `Box<dyn MemorySource>`). 언어 기본 비동기 trait 메서드(`impl Future`)는 dyn과
+// 호환되지 않아 여기서는 연관 타입(`Machine`, `Memory`)으로 두었다. dyn을 유지하려면 외부 crate
+// (`async-trait`, 또는 `futures`의 `BoxFuture`, 또는 `dynosaur`)가 필요하다. 오너 결정.
 pub trait MachineFactory {
+    /// 이 factory가 만드는 VM.
+    type Machine: Machine;
+    /// `restore`가 받는 메모리 공급원.
+    type Memory: MemorySource;
+
     /// 새 VM을 만든다.
-    fn create(&self, spec: VmSpec) -> Result<Box<dyn Machine>>;
+    fn create(&self, spec: VmSpec) -> impl Future<Output = Result<Self::Machine>> + Send;
     /// 스냅샷에서 VM을 복원한다.
     fn restore(
         &self,
         spec: VmSpec,
         meta: SnapshotMeta,
-        mem: Box<dyn MemorySource>,
-    ) -> Result<Box<dyn Machine>>;
+        mem: Self::Memory,
+    ) -> impl Future<Output = Result<Self::Machine>> + Send;
 }
 
 /// VM 하나의 제어.
 pub trait Machine {
     /// 시작한다.
-    fn start(&self) -> Result<()>;
+    fn start(&self) -> impl Future<Output = Result<()>> + Send;
     /// 일시정지한다.
-    fn pause(&self) -> Result<()>;
+    fn pause(&self) -> impl Future<Output = Result<()>> + Send;
     /// 재개한다.
-    fn resume(&self) -> Result<()>;
+    fn resume(&self) -> impl Future<Output = Result<()>> + Send;
     /// 스냅샷을 `out`으로 쓴다.
-    fn snapshot(&self, out: SnapshotSink) -> Result<SnapshotMeta>;
+    fn snapshot(&self, out: SnapshotSink) -> impl Future<Output = Result<SnapshotMeta>> + Send;
     /// VMGenID를 갱신한다.
-    fn bump_generation(&self) -> Result<()>;
+    fn bump_generation(&self) -> impl Future<Output = Result<()>> + Send;
     /// VM을 없앤다.
-    fn destroy(self: Box<Self>) -> Result<()>;
-    /// VM 이벤트 스트림.
+    // OPEN(crate): dyn이었을 때는 `self: Box<Self>`였다. 위 `MachineFactory`의 dyn 결정을 따른다.
+    fn destroy(self) -> impl Future<Output = Result<()>> + Send;
+    /// VM 이벤트 스트림. 구독만 하고 기다리지 않는다. 전달은 스트림 쪽에서 일어난다.
     fn events(&self) -> EventStream<VmEvent>;
 }
 
@@ -161,3 +174,109 @@ pub struct SnapshotSink {}
 /// VM 이벤트. PLACEHOLDER: 값 집합 미정.
 #[derive(Debug, Clone)]
 pub struct VmEvent {}
+
+/// 컴파일 전용 검사: 비동기 메서드를 더미 타입으로 구현할 수 있고, 모든 구현의 future가 `Send`다.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use droiduse_contracts_common::{Error, Labels};
+    use std::marker::PhantomData;
+
+    fn assert_send<T: Send>(_: T) {}
+
+    fn spec() -> VmSpec {
+        VmSpec {
+            vcpus: 1,
+            memory_mib: 1,
+            cpu_template: CpuTemplateRef(String::new()),
+            boot: BootSpec::Linux {
+                kernel: PathBuf::new(),
+                initrd: PathBuf::new(),
+                cmdline: String::new(),
+            },
+            disks: Vec::new(),
+            vsock: VsockSpec {},
+            net: Vec::new(),
+            vhost_user: Vec::new(),
+            vmgenid: false,
+            labels: Labels::default(),
+        }
+    }
+
+    fn unimplemented_err() -> Error {
+        Error {
+            code: None,
+            message: String::new(),
+        }
+    }
+
+    struct DummyMemory;
+    impl MemorySource for DummyMemory {
+        fn len(&self) -> u64 {
+            0
+        }
+        async fn read_at(&self, _offset: u64, _buf: &mut [u8]) -> Result<()> {
+            Err(unimplemented_err())
+        }
+        async fn prefetch(&self, _ranges: &[std::ops::Range<u64>]) {}
+    }
+
+    struct DummyMachine;
+    impl Machine for DummyMachine {
+        async fn start(&self) -> Result<()> {
+            Err(unimplemented_err())
+        }
+        async fn pause(&self) -> Result<()> {
+            Err(unimplemented_err())
+        }
+        async fn resume(&self) -> Result<()> {
+            Err(unimplemented_err())
+        }
+        async fn snapshot(&self, _out: SnapshotSink) -> Result<SnapshotMeta> {
+            Err(unimplemented_err())
+        }
+        async fn bump_generation(&self) -> Result<()> {
+            Err(unimplemented_err())
+        }
+        async fn destroy(self) -> Result<()> {
+            Err(unimplemented_err())
+        }
+        fn events(&self) -> EventStream<VmEvent> {
+            EventStream(PhantomData)
+        }
+    }
+
+    struct DummyFactory;
+    impl MachineFactory for DummyFactory {
+        type Machine = DummyMachine;
+        type Memory = DummyMemory;
+        async fn create(&self, _spec: VmSpec) -> Result<DummyMachine> {
+            Err(unimplemented_err())
+        }
+        async fn restore(
+            &self,
+            _spec: VmSpec,
+            _meta: SnapshotMeta,
+            _mem: DummyMemory,
+        ) -> Result<DummyMachine> {
+            Err(unimplemented_err())
+        }
+    }
+
+    /// 계약 시그니처만으로 모든 구현의 future가 `Send`임을 확인한다 (구현 타입과 무관).
+    fn futures_are_send<F: MachineFactory>(f: &F, m: F::Machine, mem: F::Memory) {
+        assert_send(f.create(spec()));
+        assert_send(f.restore(spec(), SnapshotMeta {}, mem));
+        assert_send(m.start());
+        assert_send(m.pause());
+        assert_send(m.resume());
+        assert_send(m.snapshot(SnapshotSink {}));
+        assert_send(m.bump_generation());
+        assert_send(m.destroy());
+    }
+
+    #[test]
+    fn dummy_implements_contract() {
+        futures_are_send(&DummyFactory, DummyMachine, DummyMemory);
+    }
+}
