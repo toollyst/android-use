@@ -23,7 +23,7 @@
 | frameworks/base | `0002-droiduse-wm-activity-event-hook` | WindowManager / ActivityTaskManager 이벤트 통지 | 동상 |
 | frameworks/base | `0003-droiduse-webview-debug-policy` | `WebViewFactory` 로드 후 디버깅 정책 적용 (정책은 시스템 속성) | 동상 |
 | frameworks/native | `0001-droiduse-sf-frameid-layer-capture` | SurfaceFlinger 프레임 번호·레이어 정보 노출, 레이어별 캡처 진입점 | `guest/vendor/services/adpd` |
-| frameworks/libs/binary_translation | (M6) berberis 프런트엔드 | 신규 파일 패치와 기존 파일 수정 패치를 분리 | 해당 프로젝트 |
+| frameworks/libs/binary_translation | (v1 이후) berberis 프런트엔드 | 신규 파일 패치와 기존 파일 수정 패치를 분리 | 해당 프로젝트 |
 
 > 정확한 삽입 지점(파일·함수)은 고정한 AOSP 태그 기준으로 착수 시 확정한다.
 
@@ -49,7 +49,7 @@ vendor/droiduse/
 │  ├─ graphics/        gfxstream guest(GLES/Vulkan), minigbm, HWC (프레임 매칭용 virtio 식별자 보고)
 │  ├─ keymint/         호스트 KeyMint와 통신하는 HAL (전용 vsock 포트)
 │  ├─ health/  sensors/  audio/
-├─ nativebridge/       berberis 통합 설정 (M6)
+├─ nativebridge/       berberis 통합 설정 (v1 이후)
 ├─ apps/microg/        privileged 설치 + 권한 XML (signature spoofing 사용 안 함)
 ├─ sepolicy/           adpd · agent · restore · HAL 전용 도메인
 ├─ avb/                공개키만 (개인키는 CI 시크릿 / HSM)
@@ -66,8 +66,8 @@ vendor/droiduse/
 ## 6. 타깃
 | product | 호스트 | 비고 |
 |---|---|---|
-| `wick_arm64` | macOS arm64, Linux arm64 | **arm64-only** (32비트 앱은 M6에서 NativeBridge로) |
-| `wick_x86_64` | Linux x86_64, Windows x86_64 | ARM 앱은 M6에서 NativeBridge(berberis arm64→x86_64)로 |
+| `wick_arm64` | macOS arm64, Linux arm64 | **arm64-only** (32비트 앱은 v1 이후 NativeBridge로) |
+| `wick_x86_64` | Linux x86_64, Windows x86_64 | ARM 앱은 NativeBridge(berberis arm64→x86_64)로. 시점은 `docs/13-roadmap.md` 남은 결정 |
 
 ## 7. 보안 요소
 - SELinux enforcing, 신규 컴포넌트마다 최소 권한 도메인

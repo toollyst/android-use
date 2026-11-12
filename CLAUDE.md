@@ -60,7 +60,7 @@ ADP 클라이언트(MCP, SDK)인가?          → clients/   (contracts/adp만 �
 5. `tools/patch/lint.sh`를 통과시킨다.
 
 ## 6. 검증 (작업 완료 전에 반드시)
-> 아래 명령은 1주차 골격에서 만들어진다. 없으면 만드는 것부터가 작업이다.
+> 아래 명령은 M0(골격)에서 만들어진다. 없으면 만드는 것부터가 작업이다.
 ```sh
 cargo xtask check-layers        # 레이어 의존 규칙
 cargo fmt --check && cargo clippy --workspace -- -D warnings
