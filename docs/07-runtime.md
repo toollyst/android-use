@@ -49,7 +49,7 @@ labels         = {}
 2. uffd lazy restore: 페이지 폴트 시 `MemorySource.read_at`, 워킹셋 prefetch 힌트
 3. 디바이스 state 복원
 4. **VMGenID 증가** → 게스트 restore hook 실행 → `Restore.Notify` 수신 확인
-5. 복제본별 새 토큰 발급(`Auth.Rebind`) → `Restore.Notify` 수신 → Ready
+5. 복제본별 새 토큰 발급(`Auth.Rebind`. 첫 토큰은 부팅 때 비밀 디스크로 갔고, restore 뒤마다 이 단계에서 바뀐다) → `Restore.Notify` 수신 → Ready
 
 ## 4. 복제 고유성 (필수)
 같은 스냅샷에서 여러 인스턴스를 띄우면 RNG 상태, ANDROID_ID, keystore 키, TLS 세션이 복제된다. 이는 보안 사고다.

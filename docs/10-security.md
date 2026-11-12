@@ -24,9 +24,10 @@
 
 ## 4. 채널 보안
 - 모든 채널 인증 (ADP, Node API, 스트림, guest_link 세션 토큰)
-- guest_link는 버전 협상과 메시지 크기 제한, 스키마 검증 후 처리. 크기 제한은 호스트·게스트 설정이고 기본값은 gRPC 기본값(4 MiB)이다
-- guest_link 연결: 게스트가 여는 연결 하나뿐이고 게스트는 listening 포트를 열지 않는다. 호스트 → 게스트 호출도 이 연결로 가며 호출마다 자기 상태·deadline·취소·W3C `traceparent`를 가진다
-- guest_link 인증: Hello와 Auth 말고는 모든 호출이 양방향 모두 세션 토큰을 바이너리 메타데이터(`droiduse-session-token-bin`)에 싣는다. 유효한 토큰이 없으면 gRPC `UNAUTHENTICATED`
+- guest_link는 버전 협상과 메시지 크기 제한, 스키마 검증 후 처리. 크기 제한은 채널마다 호스트·게스트 설정이고 기본값은 gRPC 기본값(4 MiB)이다
+- guest_link 채널: vsock 포트 두 개에 gRPC 채널 두 개. 호스트 채널은 호스트가 서버(게스트 → 호스트 서비스), 게스트 채널은 adpd가 서버(호스트 → 게스트 서비스)다. 게스트 채널 포트는 adpd의 SELinux 도메인만 bind할 수 있다. 모든 호출이 W3C `traceparent`를 싣는다
+- guest_link 인증: 두 채널의 모든 호출이 세션 토큰을 바이너리 메타데이터(`droiduse-session-token-bin`)에 싣는다. 인증 없이 부를 수 있는 호출은 없고, 유효한 토큰이 없으면 gRPC `UNAUTHENTICATED`
+- guest_link 첫 토큰: VMM이 토큰을 담은 작은 전용 비밀 디스크를 붙이고, 그 디스크는 adpd의 SELinux 도메인만 읽을 수 있다. `Auth.Rebind`가 restore 뒤마다 토큰을 바꾼다
 - ADP 인증: 업그레이드의 `Authorization: Bearer` 헤더 또는 첫 메시지 `Connection.auth`. 인증 전 메시지는 모두 거부한다. URL 쿼리 문자열의 토큰은 받지 않는다. 인증은 연결당 한 번이고 자격 증명을 바꾸려면 새로 연결한다. 실패한 인증의 rate limiting은 서버 설정이고 기본으로 켜져 있다
 - ADP 타깃: `getTargets`와 타깃 이벤트는 주체가 attach할 수 있는 타깃만 보여준다. 인가가 실패하면 보여주지 않는다(fail closed)
 - ADP `traceparent`: 클라이언트가 보낸 값은 신뢰하지 않는 입력이다. 형식을 검증하고, 기본은 새 trace를 시작해 클라이언트 trace를 링크한다
