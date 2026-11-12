@@ -1,13 +1,13 @@
 # testing/
 
-| 디렉터리 | 내용 |
+| Directory | Content |
 |---|---|
-| `testapps/` | ADP 골든용 앱: `views/`, `compose/`, `webview/`, `flutter/`, `rn/`, `gl/` |
-| `golden/` | 화면별 기대 트리·bounds·frameId·노드 ID 안정성 |
-| `e2e/` | MCP·ADP 기준 E2E. **구현 전에 먼저 추가** |
-| `conformance/` | virtio 디바이스 적합성 |
-| `fuzz/` | cargo-fuzz 타깃 |
-| `perf/` | 지표 측정과 추세 |
-| `cts/` | CTS/VTS 실행 설정, 결과 기준선 |
+| `testapps/` | Apps for the ADP golden tests: `views/`, `compose/`, `webview/`, `flutter/`, `rn/`, `gl/` |
+| `golden/` | Expected tree, bounds, frameId and node ID stability per screen |
+| `e2e/` | E2E at the MCP and ADP level. **Added before the implementation** |
+| `conformance/` | virtio device conformance |
+| `fuzz/` | cargo-fuzz targets |
+| `perf/` | Metric measurement and trends |
+| `cts/` | CTS/VTS run configuration, result baseline |
 
-상세: `docs/11-quality-and-testing.md`
+Details: `docs/11-quality-and-testing.md`
