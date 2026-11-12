@@ -1296,6 +1296,7 @@ dependencies = [
  "checklayers",
  "codegen",
  "patchlint",
+ "tempfile",
 ]
 
 [[package]]

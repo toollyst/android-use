@@ -10,3 +10,6 @@ description = "Repo automation entry point: cargo xtask <command>"
 checklayers = { path = "../checklayers" }
 patchlint = { path = "../patchlint" }
 codegen = { path = "../codegen" }
+
+[dev-dependencies]
+tempfile.workspace = true
