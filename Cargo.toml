@@ -38,23 +38,25 @@ license = "Apache-2.0"
 publish = false
 
 [workspace.dependencies]
-# contracts 허용 목록의 외부 crate (오너 결정). 버전은 여기 한 곳에서만 정한다.
+# External crates on the contracts allowlist (owner decision). Versions are set here and nowhere else.
 async-trait = "0.1.92"
 bytes = { version = "1.12.1", default-features = false }
 futures-core = { version = "0.3.34", default-features = false, features = ["alloc"] }
 futures-io = "0.3.34"
-# prost: guest_link·node 생성 메시지 타입의 런타임 (prost-build 출력이 `::prost::Message` derive와
-# `::prost::bytes`, `::prost::alloc`을 쓴다). 버전은 build/codegen의 prost-build와 같은 0.14 계열이어야 한다.
+# prost: runtime for the generated guest_link and node message types (prost-build output uses the
+# `::prost::Message` derive, `::prost::bytes` and `::prost::alloc`). The version must be in the same
+# 0.14 series as prost-build in build/codegen.
 prost = { version = "0.14.5", default-features = false, features = ["derive", "std"] }
-# base64: adp `binary` 타입의 base64 (RFC 4648 §4, 패딩·정규형 강제) 인코딩·디코딩.
+# base64: base64 encoding and decoding of the adp `binary` type (RFC 4648 §4, padding and canonical form enforced).
 base64 = "0.23.1"
-# serde, serde_json (아래, build/ 항목과 공용): adp 생성 타입의 JSON (역)직렬화 derive와,
-# properties 없는 `object`(임의 JSON 객체: envelope의 params·result·data)의 표현.
-# build/ 툴링 전용.
-# build/codegen: prost-build·prost-types (proto → Rust 메시지, protoc의 FileDescriptorSet 해석),
-# ureq (고정 protoc 다운로드, rustls), zip (공식 protoc 릴리스 zip 해제), sha2 (protoc 고정 해시 검증),
-# dirs (레포 밖 캐시 디렉터리), quote·proc-macro2·syn·prettyplease (adp 생성 코드 조립·출력, prost-build와 같은 출력기),
-# heck (이름 변환).
+# serde, serde_json (below, shared with the build/ entries): the JSON (de)serialization derives of the
+# generated adp types, and the representation of an `object` without properties (an arbitrary JSON
+# object: params, result and data of the envelope).
+# build/ tooling only.
+# build/codegen: prost-build, prost-types (proto → Rust messages, reading protoc's FileDescriptorSet),
+# ureq (pinned protoc download, rustls), zip (unpacking the official protoc release zip), sha2 (checking
+# the pinned protoc hash), dirs (cache directory outside the repo), quote, proc-macro2, syn, prettyplease
+# (assembling and printing the adp generated code, the same printer as prost-build), heck (name conversion).
 dirs = "7"
 heck = "0.5.0"
 prettyplease = "0.3"
@@ -66,8 +68,8 @@ sha2 = "0.11"
 syn = { version = "3", features = ["full"] }
 ureq = { version = "3.5.1", default-features = false, features = ["rustls"] }
 zip = { version = "9.5.1", default-features = false, features = ["deflate"] }
-# diffy: git diff 파서 (build/patchlint). mailparse: RFC 5322/2047 헤더 파서 (build/patchlint).
-# globset: OWNERS glob 매칭 (build/patchlint, ignore가 이미 쓰는 crate).
+# diffy: git diff parser (build/patchlint). mailparse: RFC 5322/2047 header parser (build/patchlint).
+# globset: OWNERS glob matching (build/patchlint; a crate that ignore already uses).
 diffy = { version = "0.5.2", default-features = false }
 globset = "0.4"
 ignore = "0.4"

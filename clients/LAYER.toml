@@ -1,4 +1,4 @@
 [layer]
 name = "clients"
-allow = ["contracts"]   # contracts/adp만. 호스트 내부(host/*)를 모른다
+allow = ["contracts"]   # contracts/adp only. Knows nothing of host internals (host/*)
 forbid_concepts = ["tenant", "billing"]

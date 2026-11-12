@@ -1,4 +1,4 @@
-# OS / 에디터
+# OS / editors
 .DS_Store
 Thumbs.db
 *.swp
@@ -10,26 +10,26 @@ Thumbs.db
 /target/
 **/*.rs.bk
 
-# 빌드 산출물·캐시 (AOSP 출력은 $AOSP_ROOT/out, 레포 밖)
+# Build outputs and caches (AOSP output goes to $AOSP_ROOT/out, outside the repo)
 /out/
 /dist/
 *.img
 *.profraw
 
-# 시크릿: 레포에는 공개키만 (docs/10-security.md §6)
+# Secrets: only public keys go in the repo (docs/10-security.md §6)
 *.pem
 *.key
 *.pk8
 !guest/vendor/avb/*.pub.pem
 
-# 테스트·트레이스 산출물
+# Test and trace outputs
 *.perfetto-trace
 /testing/perf/results/
 /testing/fuzz/artifacts/
 /testing/fuzz/corpus/
 
-# Claude Code: .claude/ 는 커밋한다(settings.json, skills, agents, commands, rules).
-# 개인·기기 전용 파일과 에이전트 작업 트리만 제외한다.
+# Claude Code: .claude/ is committed (settings.json, skills, agents, commands, rules).
+# Only personal or machine-specific files and agent worktrees are excluded.
 .claude/worktrees/
 .claude/settings.local.json
 CLAUDE.local.md

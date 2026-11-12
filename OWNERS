@@ -1,7 +1,7 @@
-# OWNERS: 디렉터리별 소유자 (하위 디렉터리 OWNERS가 우선)
-# 형식: <path-glob> <owner> [<owner>...]
-# 계약과 패치는 별도 승인 그룹을 둔다.
+# OWNERS: owners per directory (an OWNERS file in a subdirectory takes precedence)
+# Format: <path-glob> <owner> [<owner>...]
+# Contracts and patches have their own approval groups.
 
 *                       dev-chamomile
-contracts/**            dev-chamomile   # 계약 변경: 양쪽 레이어 OWNERS 승인 필요
-third_party/**/patches  dev-chamomile   # 패치 거버넌스
+contracts/**            dev-chamomile   # contract changes: approval from the OWNERS of both layers required
+third_party/**/patches  dev-chamomile   # patch governance
