@@ -6,9 +6,15 @@
 //!    workspace member is mapped to a layer by the `path` fields of `LAYERS.toml`; every path
 //!    dependency is checked against the global rules and then against the `allow` lists of
 //!    the `LAYER.toml` files from the layer root down to the crate (each can only narrow).
+//!    Inside one layer, a crate in first-level module X may not depend on a crate in another
+//!    first-level module Y unless the layer-root `LAYER.toml` lists Y in `allow_siblings`.
+//!    Contracts crates may depend on registry (crates.io) crates only if they are listed in
+//!    `LAYERS.toml [contracts] allow_external`.
 //! 2. **Forbidden concepts** (`[forbidden]` + `forbid_concepts`) in identifiers, string
-//!    literals, file and directory names and dependency crate names, case-insensitive and
-//!    word-level. Comments and `*.md` files are not checked.
+//!    literals, file and directory names and dependency crate names, case-insensitive,
+//!    word-prefix matching (`android` matches `androidboot`) minus the exact words in
+//!    `[forbidden_exceptions]`. Comments and `*.md` files are not checked; in `*.patch` /
+//!    `*.diff` files only added lines are checked.
 //!
 //! The rules themselves live in `LAYERS.toml`, the `LAYER.toml` files and
 //! `docs/02-architecture.md` §2; this crate only enforces them.
@@ -56,8 +62,11 @@ pub enum Rule {
     DepOnTesting,
     /// Globally allowed, but excluded by a `LAYER.toml` `allow` list.
     NotAllowed,
-    /// Sibling modules under a `forbid_siblings = true` directory.
-    ForbidSiblings,
+    /// Two different first-level modules of one layer, target not in `allow_siblings`.
+    SiblingModule,
+    /// Contracts crate depends on an external crate not in `[contracts] allow_external`
+    /// (or not from crates.io).
+    ContractsExternal,
     /// Layer crate depends on a repo path that is in no layer (e.g. `build/`).
     UnlayeredTarget,
     /// Layer crate has a path dependency outside the repo.
@@ -86,7 +95,8 @@ impl Rule {
             Rule::DepOnClients => "dep/on-clients",
             Rule::DepOnTesting => "dep/on-testing",
             Rule::NotAllowed => "dep/layer-toml-allow",
-            Rule::ForbidSiblings => "dep/forbid-siblings",
+            Rule::SiblingModule => "dep/sibling-module",
+            Rule::ContractsExternal => "dep/contracts-external",
             Rule::UnlayeredTarget => "dep/unlayered-target",
             Rule::OutsideRepo => "dep/outside-repo",
             Rule::UnlayeredCrate => "crate/unlayered",
@@ -162,8 +172,8 @@ pub fn check_with_cargo(root: &Path, cargo: &OsStr) -> Result<Report, Error> {
     let root = root
         .canonicalize()
         .map_err(|e| Error(format!("cannot resolve repo root {}: {e}", root.display())))?;
-    let (layers, forbidden) = config::load_layers(&root)?;
-    for (key, list) in &forbidden {
+    let file = config::load_layers(&root)?;
+    for (key, list) in &file.forbidden {
         for c in list {
             if words::split_words(c).is_empty() {
                 return Err(Error(format!(
@@ -172,11 +182,7 @@ pub fn check_with_cargo(root: &Path, cargo: &OsStr) -> Result<Report, Error> {
             }
         }
     }
-    let mut cfg = Config {
-        layers,
-        forbidden,
-        dirs: Vec::new(),
-    };
+    let mut cfg = Config::new(file);
     let mut violations = Vec::new();
     let mut stats = Stats::default();
 
@@ -201,6 +207,7 @@ pub fn check_with_cargo(root: &Path, cargo: &OsStr) -> Result<Report, Error> {
         .map(|e| e.rel.clone())
         .collect();
     cfg.load_dirs(&root, &layer_tomls, &mut violations);
+    cfg.validate_globals(&mut violations);
 
     let members = deps::load_members(&root, cargo)?;
     stats.crates_checked = members.len();

@@ -1,3 +1,5 @@
 [layer]
 name = "contracts"
 allow = []          # 자기완결: 공통 타입(에러 코드, trace ID 등)도 contracts 안에 둔다
+# 형제 계약끼리는 의존 금지. 예외: 공통 타입(common)과 SPI(spi)만 모든 계약이 참조할 수 있다.
+allow_siblings = ["common", "spi"]
