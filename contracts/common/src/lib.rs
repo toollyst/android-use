@@ -1,14 +1,16 @@
-//! 계약 공통 타입.
+//! Shared contract types.
 //!
-//! `contracts/`는 자기완결이다 (`contracts/LAYER.toml` `allow = []`). 여러 계약이 함께 쓰는
-//! 타입(에러 코드, trace ID, labels, frameId 등)은 다른 레이어가 아니라 이 crate에 둔다.
-//! 상세: `docs/03-contracts.md` 공통 규칙.
+//! `contracts/` is self-contained (`contracts/LAYER.toml` `allow = []`). Types that several
+//! contracts use together (error codes, trace IDs, labels, frameId, etc.) live in this crate,
+//! not in another layer. Details: the common rules in `docs/03-contracts.md`.
 //!
-//! 이 crate는 `machine`·`device` 계약을 통해 `host/vmm`, `host/devices`에서도 보인다.
-//! 따라서 여기에는 Android 개념을 다루는 식별자를 두지 않는다 (`LAYERS.toml` `[forbidden]`).
+//! This crate is also visible in `host/vmm` and `host/devices`, through the `machine` and
+//! `device` contracts. So no identifier that handles an Android concept goes here
+//! (`LAYERS.toml` `[forbidden]`).
 //!
-//! `PLACEHOLDER`로 표시한 타입은 문서가 이름만 정했거나 표현을 정하지 않은 것이다.
-//! 구조와 의미는 프로젝트 오너가 정한다. 임의로 채우지 않는다.
+//! A type marked `PLACEHOLDER` is one whose name the documentation fixed but whose
+//! representation it did not. Its structure and meaning are decided by the project owner.
+//! It is not filled in arbitrarily.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -18,69 +20,76 @@ use std::collections::BTreeMap;
 use futures_core::stream::BoxStream;
 
 // ---------------------------------------------------------------------------
-// 에러
+// Errors
 // ---------------------------------------------------------------------------
 
-/// 계약 전반의 에러 코드.
+/// Error codes across the contracts.
 ///
-/// 현재 값은 `docs/04-adp.md` §5 "에러 코드" 목록 그대로다.
-/// `FrameChannel::get`의 `FrameExpired`·`Timeout`(`docs/03-contracts.md` instance)도 이 목록의 값이다.
-/// 추가는 하위호환, 제거·의미 변경은 major 증가.
+/// The current values are exactly the list in `docs/04-adp.md` §5 "Error codes".
+/// `FrameExpired` and `Timeout` of `FrameChannel::get` (`docs/03-contracts.md` instance) are
+/// values from this list too.
+/// Adding a value is backward compatible; removing one or changing its meaning is a major bump.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ErrorCode {
-    /// 요청한 frameId의 프레임이 링 버퍼에 없다. 다른 프레임으로 대체하지 않는다. (`FRAME_EXPIRED`)
+    /// The frame of the requested frameId is not in the ring buffer. No other frame is
+    /// substituted. (`FRAME_EXPIRED`)
     FrameExpired,
-    /// 대상 노드가 사라졌다. (`NODE_GONE`)
+    /// The target node is gone. (`NODE_GONE`)
     NodeGone,
-    /// 대상 타깃이 사라졌다. (`TARGET_GONE`)
+    /// The target is gone. (`TARGET_GONE`)
     TargetGone,
-    /// 대상에 액션을 수행할 수 없다. (`NOT_ACTIONABLE`)
+    /// The action cannot be performed on the target. (`NOT_ACTIONABLE`)
     NotActionable,
-    /// 시간 초과. (`TIMEOUT`)
+    /// Timed out. (`TIMEOUT`)
     Timeout,
-    /// 정책이 거부했다. attach 때 `Authorizer`가 거부한 경우도 여기다. (`POLICY_DENIED`)
+    /// Denied by policy. This includes a denial by the `Authorizer` at attach. (`POLICY_DENIED`)
     PolicyDenied,
-    /// 자격 증명이 없거나 유효하지 않다. 인증 전에 온 메시지도 여기다. (`UNAUTHENTICATED`)
+    /// Credentials are missing or invalid. A message that arrives before authentication is
+    /// this too. (`UNAUTHENTICATED`)
     Unauthenticated,
-    /// 협상할 수 없는 프로토콜 버전이다. (`UNSUPPORTED_VERSION`)
+    /// A protocol version that cannot be negotiated. (`UNSUPPORTED_VERSION`)
     UnsupportedVersion,
-    /// 메시지 봉투가 잘못됐다: 형식 오류, 진행 중인 요청과 겹치는 `id`, `sessionId` 범위 위반,
-    /// 연결 상태가 허용하지 않는 메시지(인증 전은 `Unauthenticated`). (`INVALID_REQUEST`)
+    /// The message envelope is wrong: a format error, an `id` that collides with a request in
+    /// progress, a `sessionId` scope violation, a message the connection state does not allow
+    /// (before authentication it is `Unauthenticated`). (`INVALID_REQUEST`)
     InvalidRequest,
-    /// 알 수 없는 메서드다. (`METHOD_NOT_FOUND`)
+    /// Unknown method. (`METHOD_NOT_FOUND`)
     MethodNotFound,
-    /// 인자가 정의를 따르지 않는다: 필수 값 누락, 타입·열거값 불일치, 알 수 없는 union `kind`,
-    /// 셀렉터 문법 오류와 알 수 없는 셀렉터 엔진, 알 수 없는 diff 형식. (`INVALID_PARAMS`)
+    /// The arguments do not follow the definition: a required value missing, a type or enum
+    /// value mismatch, an unknown union `kind`, a selector syntax error or unknown selector
+    /// engine, an unknown diff format. (`INVALID_PARAMS`)
     InvalidParams,
 }
 
-/// 계약 trait들이 돌려주는 에러.
+/// The error the contract traits return.
 ///
-/// PLACEHOLDER: 문서는 trait 시그니처에 `Result<T>`만 쓰고 에러 타입을 정의하지 않았다.
-/// 문서에 있는 에러 코드는 ADP 목록뿐이라 VM·디바이스·저장소 실패처럼 목록에 없는 실패가 있다.
-/// 그런 실패는 `code: None`으로 둔다. 에러 모델(코드 체계, 원인 체인, 전송 시 매핑)은 미정이다.
+/// PLACEHOLDER: the documentation uses only `Result<T>` in the trait signatures and does not
+/// define the error type. The only documented error codes are the ADP list, so some failures
+/// are not on it, such as VM, device and storage failures. Those failures use `code: None`.
+/// The error model (code scheme, cause chain, mapping on the wire) is undecided.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Error {
-    /// 문서화된 에러 코드에 해당하면 그 코드. 해당하는 코드가 없으면 `None`.
+    /// The documented error code, if one applies. `None` if no code applies.
     pub code: Option<ErrorCode>,
-    /// 사람이 읽는 설명.
+    /// Human-readable description.
     pub message: String,
 }
 
-/// 계약 trait들의 결과 타입.
+/// Result type of the contract traits.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 // ---------------------------------------------------------------------------
-// 트레이스
+// Tracing
 // ---------------------------------------------------------------------------
 
-/// 레이어를 관통하는 단일 트레이스의 ID (`docs/02-architecture.md` §5).
+/// ID of the single trace that runs through the layers (`docs/02-architecture.md` §5).
 ///
-/// ADP 요청에서 시작해 guest_link 메시지 헤더로 전파된다. 모든 메시지에 실을 수 있다.
+/// It starts at an ADP request and is propagated into the guest_link message headers. Any
+/// message can carry it.
 ///
-/// PLACEHOLDER: 표현(길이, 형식, Perfetto·OTel과의 대응)은 미정이다.
-/// 문자열은 "불투명 값"이라는 뜻일 뿐 표현을 정한 것이 아니다.
+/// PLACEHOLDER: the representation (length, format, mapping to Perfetto and OTel) is undecided.
+/// The string only means "an opaque value"; it does not fix the representation.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TraceId(pub String);
 
@@ -88,49 +97,52 @@ pub struct TraceId(pub String);
 // labels
 // ---------------------------------------------------------------------------
 
-/// 인스턴스·세션·스냅샷의 불투명 key-value (`docs/glossary.md` labels).
+/// Opaque key-value pairs of an instance, session or snapshot (`docs/glossary.md` labels).
 ///
-/// 코어는 내용을 해석하지 않는다. 테넌트·플랜 같은 개념은 코어가 아니라
-/// labels와 SPI 구현체 쪽에 있다 (`docs/01-principles.md` P4).
+/// The core does not interpret the contents. Concepts such as tenants and plans live in labels
+/// and in SPI implementations, not in the core (`docs/01-principles.md` P4).
 ///
-/// `BTreeMap`은 순서를 결정적으로 만들기 위한 선택이다 (스냅샷 메타데이터 해시 등).
-/// 키·값 제약(문자 집합, 길이, 예약 접두사)은 미정이다.
+/// `BTreeMap` was chosen to make the order deterministic (snapshot metadata hashes, etc.).
+/// Constraints on keys and values (character set, length, reserved prefixes) are undecided.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct Labels(pub BTreeMap<String, String>);
 
 // ---------------------------------------------------------------------------
-// 프레임
+// Frames
 // ---------------------------------------------------------------------------
 
-/// 트리·스크린샷·이벤트의 기준 프레임 (`docs/04-adp.md` §3.1).
+/// The reference frame of trees, screenshots and events (`docs/04-adp.md` §3.1).
 ///
 /// `FrameId = { display: u32, vsyncId: i64, sfFrame: u64 }`
 ///
-/// 게스트에서 오는 값이다. `host/devices`는 이 값을 다루지 않는다 (scanout은 virtio 수준
-/// 식별자로 내보내고, `host/runtime/instance`의 `FrameChannel`이 둘을 정확히 매칭한다).
+/// The value comes from the guest. `host/devices` does not handle it (scanouts are exported
+/// with virtio-level identifiers, and the `FrameChannel` of `host/runtime/instance` matches the
+/// two exactly).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FrameId {
-    /// 디스플레이 번호.
+    /// Display number.
     pub display: u32,
-    /// 앱 쪽 Choreographer vsync ID.
+    /// App-side Choreographer vsync ID.
     pub vsync_id: i64,
-    /// 합성 쪽 SurfaceFlinger 프레임 번호.
+    /// Composition-side SurfaceFlinger frame number.
     pub sf_frame: u64,
 }
 
 // ---------------------------------------------------------------------------
-// 이벤트 스트림
+// Event streams
 // ---------------------------------------------------------------------------
 
-/// 이벤트 스트림 (`Machine::events`, `Instance::events`, `FrameChannel::subscribe`).
+/// Event stream (`Machine::events`, `Instance::events`, `FrameChannel::subscribe`).
 ///
-/// `futures_core::Stream`이다. 구독은 기다리지 않고 이 스트림을 돌려주며, 연결 실패 같은
-/// 전달 실패는 `Err` 항목으로 온다. 스레드 사이로 옮길 수 있다(`Send`).
+/// It is a `futures_core::Stream`. Subscribing returns this stream without waiting, and
+/// delivery failures such as a connection failure arrive as `Err` items. It can be moved
+/// between threads (`Send`).
 ///
-/// 배압(backpressure), 지연 구독자 처리, `Err` 뒤에 스트림이 계속되는지, 종료 의미는 미정이다.
+/// Backpressure, handling of slow subscribers, whether the stream continues after an `Err`,
+/// and the meaning of its end are undecided.
 pub type EventStream<T> = BoxStream<'static, Result<T>>;
 
-/// 컴파일 전용 검사: `EventStream`은 `Stream`이고 `Send`·`Unpin`이다.
+/// Compile-only check: `EventStream` is a `Stream` and is `Send` and `Unpin`.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,7 +152,7 @@ mod tests {
 
     fn assert_stream<S: Stream<Item = Result<u8>> + Send + Unpin>(_: S) {}
 
-    /// 테스트 전용: 바로 끝나는 스트림.
+    /// Test only: a stream that ends at once.
     struct Ended;
     impl Stream for Ended {
         type Item = Result<u8>;

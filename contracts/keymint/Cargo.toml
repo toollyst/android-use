@@ -1,12 +1,12 @@
-# 버전은 contracts/keymint/VERSION 과 같아야 한다 (단일 원천: VERSION).
-# 패키지 필드는 workspace 상속(`*.workspace = true`)을 쓰지 않는다.
-# 외부 의존의 버전은 루트 Cargo.toml `[workspace.dependencies]`가 단일 원천이다.
+# The version must equal contracts/keymint/VERSION (single source: VERSION).
+# Package fields do not use workspace inheritance (`*.workspace = true`).
+# The root Cargo.toml `[workspace.dependencies]` is the single source of external dependency versions.
 [package]
 name = "droiduse-contracts-keymint"
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
-description = "keymint 계약: 게스트 KeyMint HAL ↔ host/runtime/keymint 프레이밍·인증"
+description = "keymint contract: guest KeyMint HAL ↔ host/runtime/keymint framing and authentication"
 publish = false
 
 [lib]

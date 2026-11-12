@@ -1,23 +1,28 @@
-//! spi 계약: 코어 확장 지점.
+//! spi contract: core extension points.
 //!
-//! 상세: `docs/09-oss-and-saas.md` §2. semver로 **안정성을 약속**한다.
-//! 코어는 각 SPI의 기본 구현을 갖고(`host/runtime/stores` 등), SaaS는 코어를 포크하지 않고
-//! 이 trait들의 구현체를 주입해 자기 node 바이너리를 조립한다.
+//! Details: `docs/09-oss-and-saas.md` §2. Semver here is a **promise of stability**.
+//! The core has a default implementation of each SPI (`host/runtime/stores`, etc.); SaaS does
+//! not fork the core, it injects implementations of these traits to assemble its own node
+//! binary.
 //!
-//! 이 crate는 `host/devices/net`(`EgressUpstream`)과 `machine` 계약(`MemorySource`,
-//! `SnapshotMeta`)을 통해 `host/devices`, `host/vmm`에서도 보인다. 따라서 Android 개념을
-//! 다루는 식별자를 두지 않는다 (`LAYERS.toml` `[forbidden]`). 테넌트·과금 개념도 없다.
+//! This crate is also visible in `host/devices` and `host/vmm`, through `host/devices/net`
+//! (`EgressUpstream`) and the `machine` contract (`MemorySource`, `SnapshotMeta`). So no
+//! identifier that handles an Android concept goes here (`LAYERS.toml` `[forbidden]`). There
+//! are no tenant or billing concepts either.
 //!
-//! 주입 방식(문서): `MemorySource`, `SnapshotStore`, `StreamTransport`, `EgressUpstream`은
-//! in-process(Rust trait), `Authorizer`, `PolicyProvider`는 out-of-process(gRPC 훅)도 가진다.
-//! 이 crate는 Rust trait 쪽만 정의한다. gRPC 훅의 직렬화 형식은 미정이다.
+//! Injection (documentation): `MemorySource`, `SnapshotStore`, `StreamTransport` and
+//! `EgressUpstream` are in-process (Rust traits); `Authorizer` and `PolicyProvider` also have
+//! an out-of-process form (gRPC hooks). This crate defines only the Rust trait side. The
+//! serialization format of the gRPC hooks is undecided.
 //!
-//! 비동기 메서드는 `async-trait`으로 선언한다. 모든 SPI trait은 trait object(dyn)로 주입할 수
-//! 있고, 특정 async 런타임을 가정하지 않으며, `Send` future를 돌려준다.
-//! future를 drop하면 그 호출은 취소된다. 읽기 호출(메서드 문서에 표시)은 drop에 부작용이 없다.
-//! 쓰기 호출(`put`, `delete`, `commit`, `connect`, `publish`, `emit`, `Recorder`)의 취소 의미는 미정이다.
+//! Async methods are declared with `async-trait`. Every SPI trait can be injected as a trait
+//! object (dyn), assumes no particular async runtime, and returns `Send` futures.
+//! Dropping a future cancels that call. Read calls (marked in the method docs) have no side
+//! effects when dropped. The cancellation semantics of write calls (`put`, `delete`, `commit`,
+//! `connect`, `publish`, `emit`, `Recorder`) are undecided.
 //!
-//! `PLACEHOLDER`로 표시한 타입은 문서가 이름만 정한 것이다. 구조와 의미는 미정이다.
+//! A type marked `PLACEHOLDER` is one only named by the documentation. Its structure and
+//! meaning are undecided.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -28,244 +33,260 @@ use droiduse_contracts_common::{Labels, Result};
 use futures_io::{AsyncRead, AsyncWrite};
 
 // ---------------------------------------------------------------------------
-// 스냅샷·이미지 저장소
+// Snapshot and image stores
 // ---------------------------------------------------------------------------
 
-/// 스냅샷 저장소. 코어 기본: 로컬 파일시스템. 사용 위치: `host/runtime/snapshot`.
+/// Snapshot store. Core default: the local file system. Used by: `host/runtime/snapshot`.
 #[async_trait]
 pub trait SnapshotStore: Send + Sync {
-    /// 스냅샷을 저장하고 참조를 돌려준다.
+    /// Stores a snapshot and returns a reference to it.
     async fn put(&self, meta: &SnapshotMeta, parts: SnapshotParts) -> Result<SnapshotRef>;
-    /// 스냅샷을 연다. 메타 + 디바이스 state + `MemorySource` 팩토리. 읽기 호출이라 drop(취소)에 부작용이 없다.
+    /// Opens a snapshot: metadata + device state + `MemorySource` factory. A read call, so
+    /// dropping it (cancellation) has no side effects.
     async fn open(&self, r: &SnapshotRef) -> Result<SnapshotHandle>;
-    /// selector에 맞는 스냅샷 목록. 읽기 호출이라 drop(취소)에 부작용이 없다.
+    /// The snapshots matching the selector. A read call, so dropping it (cancellation) has no
+    /// side effects.
     async fn list(&self, selector: &LabelSelector) -> Result<Vec<SnapshotRef>>;
-    /// 스냅샷을 지운다.
+    /// Deletes a snapshot.
     async fn delete(&self, r: &SnapshotRef) -> Result<()>;
 }
 
-/// 이미지 저장소 (디스크 base 레이어). 코어 기본: 로컬 파일시스템.
+/// Image store (the disk base layer). Core default: the local file system.
 ///
-/// PLACEHOLDER: `docs/09-oss-and-saas.md` §2 표에 이름만 있고 시그니처 초안이 없다.
+/// PLACEHOLDER: only named in the `docs/09-oss-and-saas.md` §2 table; there is no draft
+/// signature.
 pub trait ImageStore: Send + Sync {}
 
-/// 스냅샷 메모리 페이지 공급원. 로컬 파일 또는 원격 페이지 서버(lazy restore).
-/// 사용 위치: `host/runtime/snapshot` (uffd), `machine` 계약의 `MachineFactory::restore`.
-// 문서 초안에 `is_empty`가 없다. 메서드를 추가하는 것은 계약 변경이므로 lint만 기대값으로 표시한다.
+/// Source of snapshot memory pages. A local file or a remote page server (lazy restore).
+/// Used by: `host/runtime/snapshot` (uffd), `MachineFactory::restore` of the `machine` contract.
+// The documentation draft has no `is_empty`. Adding a method is a contract change, so the lint
+// is only marked as expected.
 #[expect(
     clippy::len_without_is_empty,
-    reason = "docs/09-oss-and-saas.md §2 초안 그대로. is_empty 추가는 계약 변경이라 오너 결정"
+    reason = "exactly the docs/09-oss-and-saas.md §2 draft. Adding is_empty is a contract change, which is the owner's decision"
 )]
 #[async_trait]
 pub trait MemorySource: Send + Sync {
-    /// 전체 길이(바이트).
+    /// Total length (bytes).
     fn len(&self) -> u64;
-    /// `offset`부터 정확히 `len` 바이트를 읽어 소유 버퍼로 돌려준다.
+    /// Reads exactly `len` bytes from `offset` and returns them in an owned buffer.
     ///
-    /// 버퍼를 호출자가 빌려주지 않으므로 완료 기반 I/O(io_uring, IOCP)에서도 future를 drop해
-    /// 취소할 수 있다. 읽기 호출이라 drop(취소)에 부작용이 없다.
+    /// The caller does not lend the buffer, so the future can be dropped to cancel even with
+    /// completion-based I/O (io_uring, IOCP). A read call, so dropping it (cancellation) has no
+    /// side effects.
     async fn read_at(&self, offset: u64, len: usize) -> Result<Bytes>;
-    /// 워킹셋 힌트. 읽기 호출이라 drop(취소)에 부작용이 없다.
+    /// Working-set hint. A read call, so dropping it (cancellation) has no side effects.
     async fn prefetch(&self, ranges: &[std::ops::Range<u64>]);
 }
 
-/// 디스크 profile 레이어 저장소 (사용자 데이터 보존). 사용 위치: runtime.
+/// Store of the disk profile layer (keeps user data). Used by: runtime.
 #[async_trait]
 pub trait ProfileStore: Send + Sync {
-    /// profile 레이어를 연다.
+    /// Opens a profile layer.
     async fn open(&self, id: &ProfileId) -> Result<DiskLayer>;
-    /// profile 레이어를 반영한다.
+    /// Commits a profile layer.
     async fn commit(&self, id: &ProfileId, layer: DiskLayer) -> Result<()>;
 }
 
 // ---------------------------------------------------------------------------
-// 인증·인가·정책
+// Authentication, authorization, policy
 // ---------------------------------------------------------------------------
 
-/// 인증. 사용 위치: `host/entrypoints/adp_server`, `host/entrypoints/node`. 코어 기본: 로컬 토큰.
+/// Authentication. Used by: `host/entrypoints/adp_server`, `host/entrypoints/node`. Core
+/// default: local tokens.
 #[async_trait]
 pub trait Authenticator: Send + Sync {
-    /// 자격 증명을 검증하고 주체를 돌려준다. 읽기 호출이라 drop(취소)에 부작용이 없다.
+    /// Verifies credentials and returns the principal. A read call, so dropping it
+    /// (cancellation) has no side effects.
     async fn authenticate(&self, cred: &Credential, ch: &ChannelCtx) -> Result<Principal>;
 }
 
-/// 인가. 사용 위치: `host/entrypoints/adp_server`, `host/entrypoints/node`.
+/// Authorization. Used by: `host/entrypoints/adp_server`, `host/entrypoints/node`.
 #[async_trait]
 pub trait Authorizer: Send + Sync {
-    /// `who`가 `on`에 대해 `action`을 해도 되는지 판단한다.
+    /// Decides whether `who` may do `action` on `on`.
     ///
-    /// **fail closed**: 호출자는 `Err`와 취소된 호출(future drop)을 모두 거부로 다룬다. 읽기 호출이라 drop(취소)에 부작용이 없다.
+    /// **fail closed**: the caller treats both `Err` and a cancelled call (future dropped) as a
+    /// denial. A read call, so dropping it (cancellation) has no side effects.
     async fn authorize(&self, who: &Principal, action: &Action, on: &Resource) -> Result<Decision>;
 }
 
-/// 정책 공급. 사용 위치: `host/services/network`, `host/runtime/resources`. 코어 기본: 정적 설정.
+/// Policy supply. Used by: `host/services/network`, `host/runtime/resources`. Core default:
+/// static configuration.
 #[async_trait]
 pub trait PolicyProvider: Send + Sync {
-    /// 세션 정책 (egress, 리소스 한도, TLS 가시성 등). 읽기 호출이라 drop(취소)에 부작용이 없다.
+    /// Session policy (egress, resource limits, TLS visibility, etc.). A read call, so dropping
+    /// it (cancellation) has no side effects.
     async fn session_policy(&self, labels: &Labels) -> Result<SessionPolicy>;
 }
 
 // ---------------------------------------------------------------------------
-// 네트워크·프로필·스트림
+// Network, profiles, streams
 // ---------------------------------------------------------------------------
 
-/// egress 업스트림. 사용 위치: `host/devices/net` (usernet). 코어 기본: 직접 연결.
+/// Egress upstream. Used by: `host/devices/net` (usernet). Core default: direct connection.
 #[async_trait]
 pub trait EgressUpstream: Send + Sync {
-    /// 목적지로 연결을 연다.
+    /// Opens a connection to the destination.
     async fn connect(&self, dst: &Destination, flow: &FlowCtx) -> Result<Box<dyn Conn>>;
 }
 
-/// 기기 프로필 공급 (기종·로케일·시간대·위치). 사용 위치: `host/runtime/identity`.
+/// Device profile supply (model, locale, time zone, location). Used by:
+/// `host/runtime/identity`.
 #[async_trait]
 pub trait DeviceProfileProvider: Send + Sync {
-    /// labels에 맞는 프로필. 읽기 호출이라 drop(취소)에 부작용이 없다.
+    /// The profile matching the labels. A read call, so dropping it (cancellation) has no side
+    /// effects.
     async fn profile(&self, labels: &Labels) -> Result<DeviceProfile>;
 }
 
-/// 화면 스트림 전송. 사용 위치: `host/services/stream`. 코어 기본: WebSocket.
+/// Screen stream transport. Used by: `host/services/stream`. Core default: WebSocket.
 #[async_trait]
 pub trait StreamTransport: Send + Sync {
-    /// 인코딩된 트랙을 내보내고 접속 지점을 돌려준다.
+    /// Publishes an encoded track and returns the endpoint to connect to.
     async fn publish(&self, session: &SessionId, track: EncodedTrack) -> Result<StreamEndpoint>;
 }
 
 // ---------------------------------------------------------------------------
-// 이벤트·텔레메트리·기록
+// Events, telemetry, recording
 // ---------------------------------------------------------------------------
 
-/// 이벤트 출력 (수명주기, 리소스 사용량 등). 사용 위치: runtime, services. 코어 기본: 로그.
+/// Event output (lifecycle, resource usage, etc.). Used by: runtime, services. Core default:
+/// logs.
 #[async_trait]
 pub trait EventSink: Send + Sync {
-    /// 이벤트 하나를 내보낸다.
+    /// Emits one event.
     async fn emit(&self, ev: &Event) -> Result<()>;
 }
 
-/// 텔레메트리 내보내기. 사용 위치: `host/base/trace`. 코어 기본: Perfetto 파일.
+/// Telemetry export. Used by: `host/base/trace`. Core default: Perfetto files.
 ///
-/// PLACEHOLDER: `docs/09-oss-and-saas.md` §2 표에 이름만 있고 시그니처 초안이 없다.
+/// PLACEHOLDER: only named in the `docs/09-oss-and-saas.md` §2 table; there is no draft
+/// signature.
 pub trait TelemetryExporter: Send + Sync {}
 
-/// 세션 기록. 사용 위치: `host/services/record`. 코어 기본: 로컬 파일.
+/// Session recording. Used by: `host/services/record`. Core default: local files.
 #[async_trait]
 pub trait Recorder: Send + Sync {
-    /// 기록을 시작한다.
+    /// Starts a recording.
     async fn begin(&self, session: &SessionId) -> Result<RecordingId>;
-    /// 항목을 덧붙인다.
+    /// Appends an item.
     async fn append(&self, id: &RecordingId, item: RecordItem) -> Result<()>;
-    /// 기록을 마친다.
+    /// Finishes the recording.
     async fn finish(&self, id: &RecordingId) -> Result<RecordingRef>;
 }
 
 // ---------------------------------------------------------------------------
-// 자리표시 타입 (문서가 이름만 정한 것)
+// Placeholder types (only named by the documentation)
 // ---------------------------------------------------------------------------
 
-/// 스냅샷 메타데이터.
+/// Snapshot metadata.
 ///
-/// PLACEHOLDER: `docs/03-contracts.md` machine(`Machine::snapshot` 반환)과
-/// `docs/09-oss-and-saas.md` §2(`SnapshotStore::put` 인자)가 같은 이름을 쓴다.
-/// 하나의 타입으로 두었다. 버전 있는 포맷의 필드 후보는 `docs/07-runtime.md` §3에 있다.
+/// PLACEHOLDER: `docs/03-contracts.md` machine (returned by `Machine::snapshot`) and
+/// `docs/09-oss-and-saas.md` §2 (argument of `SnapshotStore::put`) use the same name.
+/// It is kept as one type. Candidate fields of the versioned format are in
+/// `docs/07-runtime.md` §3.
 #[derive(Debug, Clone)]
 pub struct SnapshotMeta {}
 
-/// 스냅샷 구성 요소 (메모리, vCPU 상태, 디바이스 state 등). PLACEHOLDER.
+/// Snapshot parts (memory, vCPU state, device state, etc.). PLACEHOLDER.
 #[derive(Debug)]
 pub struct SnapshotParts {}
 
-/// 저장된 스냅샷 참조. PLACEHOLDER: 표현 미정 (문자열은 "불투명 값"이라는 뜻일 뿐).
+/// Reference to a stored snapshot. PLACEHOLDER: representation undecided (the string only
+/// means "an opaque value").
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SnapshotRef(pub String);
 
-/// 열린 스냅샷: 메타 + 디바이스 state + `MemorySource` 팩토리. PLACEHOLDER.
+/// An open snapshot: metadata + device state + `MemorySource` factory. PLACEHOLDER.
 #[derive(Debug)]
 pub struct SnapshotHandle {}
 
-/// labels selector. PLACEHOLDER: 문법 미정.
+/// labels selector. PLACEHOLDER: syntax undecided.
 #[derive(Debug, Clone)]
 pub struct LabelSelector {}
 
-/// profile 식별자. PLACEHOLDER: 표현 미정.
+/// Profile identifier. PLACEHOLDER: representation undecided.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ProfileId(pub String);
 
-/// 디스크 CoW 레이어 하나. PLACEHOLDER.
+/// One disk CoW layer. PLACEHOLDER.
 #[derive(Debug)]
 pub struct DiskLayer {}
 
-/// 자격 증명. PLACEHOLDER.
+/// Credentials. PLACEHOLDER.
 #[derive(Debug)]
 pub struct Credential {}
 
-/// 자격 증명이 들어온 채널의 맥락. PLACEHOLDER.
+/// Context of the channel the credentials came in on. PLACEHOLDER.
 #[derive(Debug)]
 pub struct ChannelCtx {}
 
-/// 인증된 주체. PLACEHOLDER.
+/// An authenticated principal. PLACEHOLDER.
 #[derive(Debug, Clone)]
 pub struct Principal {}
 
-/// 인가 대상 행위. PLACEHOLDER.
+/// The action being authorized. PLACEHOLDER.
 #[derive(Debug)]
 pub struct Action {}
 
-/// 인가 대상 자원. PLACEHOLDER.
+/// The resource being authorized. PLACEHOLDER.
 #[derive(Debug)]
 pub struct Resource {}
 
-/// 인가 결정. PLACEHOLDER: 값 집합 미정.
+/// Authorization decision. PLACEHOLDER: value set undecided.
 #[derive(Debug)]
 pub struct Decision {}
 
-/// 세션 정책 (egress, 리소스 한도, TLS 가시성 등). PLACEHOLDER.
+/// Session policy (egress, resource limits, TLS visibility, etc.). PLACEHOLDER.
 #[derive(Debug, Clone)]
 pub struct SessionPolicy {}
 
-/// egress 목적지. PLACEHOLDER.
+/// Egress destination. PLACEHOLDER.
 #[derive(Debug)]
 pub struct Destination {}
 
-/// egress 플로우 맥락. PLACEHOLDER.
+/// Egress flow context. PLACEHOLDER.
 #[derive(Debug)]
 pub struct FlowCtx {}
 
-/// 업스트림 연결: 양방향 비동기 바이트 스트림. 닫기는 `AsyncWrite::poll_close`.
+/// Upstream connection: a bidirectional async byte stream. Closed with `AsyncWrite::poll_close`.
 pub trait Conn: AsyncRead + AsyncWrite + Send {}
 
-/// 기기 프로필 (기종·로케일·시간대·위치). PLACEHOLDER.
+/// Device profile (model, locale, time zone, location). PLACEHOLDER.
 #[derive(Debug, Clone)]
 pub struct DeviceProfile {}
 
-/// 세션 식별자. PLACEHOLDER: 표현 미정.
+/// Session identifier. PLACEHOLDER: representation undecided.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SessionId(pub String);
 
-/// 인코딩된 미디어 트랙. PLACEHOLDER.
+/// Encoded media track. PLACEHOLDER.
 #[derive(Debug)]
 pub struct EncodedTrack {}
 
-/// 스트림 접속 지점. PLACEHOLDER.
+/// Stream endpoint. PLACEHOLDER.
 #[derive(Debug, Clone)]
 pub struct StreamEndpoint {}
 
-/// `EventSink`로 내보내는 이벤트. PLACEHOLDER.
+/// An event emitted through `EventSink`. PLACEHOLDER.
 #[derive(Debug)]
 pub struct Event {}
 
-/// 기록 식별자. PLACEHOLDER: 표현 미정.
+/// Recording identifier. PLACEHOLDER: representation undecided.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordingId(pub String);
 
-/// 기록 항목 하나. PLACEHOLDER.
+/// One recording item. PLACEHOLDER.
 #[derive(Debug)]
 pub struct RecordItem {}
 
-/// 완료된 기록 참조. PLACEHOLDER: 표현 미정.
+/// Reference to a finished recording. PLACEHOLDER: representation undecided.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordingRef(pub String);
 
-/// 컴파일 전용 검사: 비동기 SPI trait을 더미 타입으로 구현할 수 있고, `Box<dyn …>`·`&dyn …`로
-/// 쓸 수 있으며, future가 `Send`다.
+/// Compile-only check: the async SPI traits can be implemented by dummy types, can be used as
+/// `Box<dyn …>` and `&dyn …`, and their futures are `Send`.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -382,7 +403,7 @@ mod tests {
         }
     }
 
-    /// 테스트 전용: 항상 EOF인 연결.
+    /// Test only: a connection that is always at EOF.
     struct DummyConn;
     impl AsyncRead for DummyConn {
         fn poll_read(
@@ -410,7 +431,7 @@ mod tests {
     }
     impl Conn for DummyConn {}
 
-    /// trait object로 주입·호출해도 모든 future가 `Send`다.
+    /// Every future is `Send` even when injected and called through trait objects.
     #[allow(clippy::too_many_arguments)]
     fn dyn_futures_are_send(
         store: &dyn SnapshotStore,
