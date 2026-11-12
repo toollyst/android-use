@@ -122,10 +122,11 @@ droid-use/
 ```
 
 ## 5. Observability: a single trace across the layers
-- The host uses the Perfetto SDK and the guest uses Android's built-in Perfetto. The two are merged on **the same trace ID and time axis**.
+- The host uses the Perfetto SDK and the guest uses Android's built-in Perfetto. The two are merged on one time axis; how the trace context below is represented in the Perfetto traces is not decided yet.
 - One MCP `act` shows up as one timeline:
   `clients/mcp → host/entrypoints/adp_server → host/services/input → host/devices/input → guest InputDispatcher → app rendering → SurfaceFlinger → host/devices/gpu scanout → host/services/screen`
-- The trace ID starts from the ADP request ID and is propagated in the guest_link message headers.
+- The trace context is W3C Trace Context (Level 1). Inside a process it is ambient (the current tracing context), not a parameter of the contract traits. At every wire and IPC boundary it is carried explicitly as `traceparent` and optional `tracestate`: ADP request fields, guest_link and node gRPC metadata. The boundary types are in `contracts/common`.
+- ADP: a client's `traceparent` is untrusted. A valid one by default starts a new trace linked to the client's trace (continuing the client's trace is a server setting); an absent or invalid one starts a new trace. guest_link: every call carries `traceparent`.
 
 ### Symptom → responsible layer
 | Symptom | Responsible layer |

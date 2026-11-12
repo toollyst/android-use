@@ -8,7 +8,7 @@ Layer boundaries are crossed **only through the contracts in this document**. Co
 - A backward-incompatible change needs a major bump + a `contracts/compat/` fixture + a migration document.
 - A change PR needs approval by the OWNERS of the layers on both sides.
 - Serialization contracts (guest_link, adp, node) generate Rust / Kotlin·Java / C++ / TypeScript / Python code with `build/codegen`.
-- Every channel is authenticated. Every message can carry a `trace_id`.
+- Every channel is authenticated. The trace context crosses every wire and IPC boundary explicitly as W3C Trace Context `traceparent` and `tracestate` fields or metadata (types in `contracts/common`); inside a process it is ambient.
 - If an asynchronous lifecycle call (VM create, start, snapshot, restore, session acquire, etc.) is cancelled midway (future drop), that instance ends in `Failed` and runtime takes care of cleaning up resources (a half-built VM never appears as `Ready`); cancelling a read call has no side effects.
 
 ## Contract list

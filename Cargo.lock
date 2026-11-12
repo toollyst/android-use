@@ -126,6 +126,7 @@ version = "0.1.0"
 dependencies = [
  "dirs",
  "droiduse-contracts-adp",
+ "droiduse-contracts-common",
  "droiduse-contracts-guest-link",
  "droiduse-contracts-node",
  "heck",

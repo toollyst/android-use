@@ -1,6 +1,7 @@
 //! The real repo: the committed adp output is up to date (the proto targets need the pinned
 //! protoc and are checked by `cargo xtask codegen --check` in CI), the real config is valid,
-//! and the hand-written gRPC metadata key constants match the proto headers.
+//! and the hand-written gRPC metadata key constants match the proto headers and the W3C field
+//! names of `contracts/common`.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -77,6 +78,15 @@ fn metadata_key_constants_match_the_proto_headers() {
     );
     assert_eq!(gl::TRACEPARENT_METADATA_KEY, "traceparent");
     assert_eq!(gl::TRACESTATE_METADATA_KEY, "tracestate");
+    // Each contract keeps its own constants; they stay equal to the W3C field names of
+    // contracts/common.
+    use droiduse_contracts_common as common;
+    for key in [gl::TRACEPARENT_METADATA_KEY, node::TRACEPARENT_METADATA_KEY] {
+        assert_eq!(key, common::TRACEPARENT);
+    }
+    for key in [gl::TRACESTATE_METADATA_KEY, node::TRACESTATE_METADATA_KEY] {
+        assert_eq!(key, common::TRACESTATE);
+    }
     assert_eq!(gl::SESSION_TOKEN_METADATA_KEY, "droiduse-session-token-bin");
     // gRPC: keys ending in -bin carry binary values
     assert!(gl::SESSION_TOKEN_METADATA_KEY.ends_with("-bin"));

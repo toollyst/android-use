@@ -6,7 +6,7 @@ name = "droiduse-contracts-common"
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
-description = "Shared contract types: error codes, trace IDs, labels, frameId, event streams"
+description = "Shared contract types: error codes, W3C trace context, labels, frameId, event streams"
 publish = false
 
 [lib]

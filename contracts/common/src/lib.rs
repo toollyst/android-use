@@ -83,15 +83,14 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 // Tracing
 // ---------------------------------------------------------------------------
 
-/// ID of the single trace that runs through the layers (`docs/02-architecture.md` §5).
-///
-/// It starts at an ADP request and is propagated into the guest_link message headers. Any
-/// message can carry it.
-///
-/// PLACEHOLDER: the representation (length, format, mapping to Perfetto and OTel) is undecided.
-/// The string only means "an opaque value"; it does not fix the representation.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TraceId(pub String);
+// The single trace that runs through the layers (`docs/02-architecture.md` §5) crosses every
+// wire and IPC boundary as W3C Trace Context fields. Details: `trace.rs`.
+mod trace;
+
+pub use trace::{
+    SpanId, TRACEPARENT, TRACESTATE, TRACESTATE_MAX_MEMBERS, TraceContext, TraceContextError,
+    TraceFlags, TraceId, TraceParent, TraceState,
+};
 
 // ---------------------------------------------------------------------------
 // labels
