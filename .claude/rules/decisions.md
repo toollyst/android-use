@@ -1,8 +1,5 @@
-# 결정과 추천
+# Decisions and recommendations
 
-- 설계 결정이 필요하면 ADR이나 초안 문서를 쓰지 않는다. 선택지와 추천을 붙여 사용자에게 바로 질문하고, 답을 받은 뒤에만 코드와 문서에 반영한다.
-- 결정이 필요한 것은 반드시 질문 형태(선택지를 고르는 질문 도구)로 묻는다. 보고문 안에 나열하고 "추천대로 할까요"라고 묻지 않는다.
-- 선택지를 추천할 때는 최종 제품의 품질·정확성·보안만 기준으로 삼는다. 비용, 일정, 구현 난이도, 우회 편의는 추천 근거가 아니다. 사실로 언급할 수는 있다.
-- 작업 중에 새로 생긴 일(추가 수정, 새 발견, 새 결정)은 보고하고 허락을 받은 뒤에 한다.
-- 반드시 하나로 정해야 하는 것이 아니고 설정으로 바꿔 동작할 수 있는 것(재시작 등으로 다시 로드하면 반영되는 것)은 질문하지 않는다. 품질 기준으로 기본값을 정하고 설정으로 바꿀 수 있게 만든 뒤, 기본값과 설정 위치를 보고한다. 질문은 구조·계약·보안 경계처럼 설정으로 열 수 없는 결정에만 한다.
-- 여러 방식을 동시에 지원하면 구현·검증이 크게 느는 것(와이어 형식 등)은 품질 기준으로 최선인 하나만 먼저 구현하고, 나중에 다른 방식을 추가할 수 있게 확장 지점만 열어 둔다.
+- When recommending an option, the only criteria are the quality, correctness and security of the final product. Cost, schedule, implementation difficulty and workaround convenience are not grounds for a recommendation. They may be mentioned as facts.
+- Something that does not have to be fixed to a single behaviour and can work as a setting (applied when reloaded, e.g. after a restart) is not fixed in code: choose the default by quality, make it changeable through a setting, and state the default and where the setting lives. Only decisions that cannot be opened up as a setting, such as structure, contracts and security boundaries, are made as one fixed choice.
+- When supporting several variants at once would greatly increase implementation and verification (wire formats, etc.), implement only the one that is best by quality first, and leave only an extension point open so other variants can be added later.
