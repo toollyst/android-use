@@ -2,3 +2,7 @@
 name = "clients"
 allow = ["contracts"]   # contracts/adp only. Knows nothing of host internals (host/*)
 forbid_concepts = ["tenant", "billing"]
+
+# Sibling modules must not depend on each other. Exceptions are one-way edges only (module = [sibling modules it may depend on]).
+[allow_siblings]
+mcp = ["sdk"]

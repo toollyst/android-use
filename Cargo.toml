@@ -24,6 +24,7 @@ members = [
     "build/codegen",
     "build/patchlint",
     "build/xtask",
+    "clients/mcp",
     "clients/sdk/rust",
     "contracts/*",
     "host/runtime/instance",
@@ -63,9 +64,10 @@ tracing = { version = "0.1.44", default-features = false, features = ["std"] }
 tokio = { version = "1.54.1", default-features = false, features = ["macros", "rt"] }
 # clients/ only. tokio-tungstenite: the ADP WebSocket client (and the fake ADP server of the SDK's
 # test support); futures-util: Stream/Sink combinators over it; getrandom: random trace-id and
-# parent-id of a new W3C traceparent.
+# parent-id of a new W3C traceparent; rmcp: the official MCP Rust SDK (clients/mcp).
 futures-util = { version = "0.3.34", default-features = false, features = ["sink", "std"] }
 getrandom = "0.4.3"
+rmcp = { version = "3.9.0", default-features = false }
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "handshake"] }
 # build/ tooling only.
 # build/codegen: prost-build, prost-types (proto → Rust messages, reading protoc's FileDescriptorSet),
