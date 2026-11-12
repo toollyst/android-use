@@ -1,0 +1,42 @@
+# cargo xtask codegen 설정 (build/codegen). 생성 코드는 각 out 디렉터리에 커밋하고,
+# `cargo xtask codegen --check`가 다시 생성해 비교한다 (낡은 출력, 손으로 고친 출력, 남는 파일은 실패).
+# out 디렉터리는 생성기 소유다: 생성하지 않는 파일이 있으면 --check는 실패하고, 생성은 그 파일을 지운다.
+# protoc 버전·플랫폼별 sha256은 versions.toml [protoc].
+# 모든 키는 필수가 아니며, 생략하면 아래에 적힌 값이 기본값이다. 모르는 키는 오류다.
+
+# Protocol Buffers 계약: prost-build로 메시지 타입만 만든다 (서비스 바인딩·tonic 없음).
+# root 아래의 모든 .proto를 컴파일한다 (proto 루트 = -I). 패키지마다 `<package>.rs` 하나.
+[[proto]]
+name = "guest_link"
+root = "contracts/guest_link/proto"
+out = "contracts/guest_link/src/generated"
+# prost-build Config::bytes / btree_map 경로. "."은 모든 필드.
+bytes = ["."]
+btree_map = []
+
+[[proto]]
+name = "node"
+root = "contracts/node/proto"
+out = "contracts/node/src/generated"
+bytes = ["."]
+btree_map = ["."]
+
+# ADP 계약: protocol.json → serde 타입 (도메인마다 모듈 하나 + 최상위 errors 모듈).
+[adp]
+definition = "contracts/adp/protocol.json"
+version = "contracts/adp/VERSION"
+out = "contracts/adp/src/generated"
+# format 없는 `integer`의 Rust 타입. 가능한 값: "i64", "i32", "u32", "reject"(생성 실패).
+# 기본 "i64": protocol.json은 `integer`를 32비트 이하 JSON 숫자로 정의하지만(64비트는 10진 문자열),
+# format이 없으면 부호와 폭이 정해지지 않았다. i64는 int32와 uint32의 모든 값을 손실 없이 담는
+# 가장 작은 표준 정수형이라, 부호를 추측하지 않고 유효한 값을 하나도 거부하지 않는다.
+# 문서가 폭을 정하면 protocol.json에 format을 넣거나 아래 [adp.integer]로 속성별로 고정한다.
+integer_without_format = "i64"
+# 받을 때 정의에 없는 필드를 거부할지 (serde deny_unknown_fields). 기본 true: 스키마 검증 후 처리
+# (docs/10-security.md §4), 모르는 입력은 거부(fail closed).
+deny_unknown_fields = true
+
+# format 없는 `integer` 속성별 고정. 키: "<Domain>.<Type>.<property>",
+# "<Domain>.<command>.parameters.<name>", "<Domain>.<command>.returns.<name>",
+# "<Domain>.<event>.parameters.<name>". 값: "i64", "i32", "u32". 정의에 없는 키는 오류다.
+[adp.integer]

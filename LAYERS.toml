@@ -91,4 +91,4 @@ level = 7          # 모든 레이어를 테스트 목적으로 참조 가능, �
 [contracts]
 # contracts crate가 의존해도 되는 외부(crates.io) crate. 일반·build·dev 의존 모두 해당.
 # 목록에 없거나 crates.io가 아닌 출처(git, 다른 레지스트리)면 위반. 와일드카드 없음.
-allow_external = ["async-trait", "bytes", "futures-core", "futures-io"]
+allow_external = ["async-trait", "base64", "bytes", "futures-core", "futures-io", "prost", "serde", "serde_json"]

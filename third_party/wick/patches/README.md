@@ -2,6 +2,16 @@
 
 `third_party/wick/src`(submodule) 위에 적용한다. 적용 순서는 `series`.
 
+## 패치
+
+패치 헤더에서 생성한 표다 (`cargo xtask patch-readme`). 손으로 고치지 않는다.
+
+<!-- BEGIN GENERATED: patch table from the patch headers. Run `cargo xtask patch-readme`. -->
+_패치 없음._
+<!-- END GENERATED: patch table -->
+
+## 계획 (아직 패치가 아니다)
+
 | 패치 | Purpose | Hook-for | Upstream |
 |---|---|---|---|
 | (예정) ext 디바이스 등록 hook | 우리 crate의 디바이스·API 등록 | host/vmm/* | wick 예정 |

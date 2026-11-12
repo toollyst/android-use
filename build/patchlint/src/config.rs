@@ -21,6 +21,7 @@ pub struct Config {
     pub header: Header,
     pub marker: Marker,
     pub rules: Rules,
+    pub readme: Readme,
     /// Per `third_party/<x>`: its `Layer:`, `series` format and optional budget cap.
     pub upstream: BTreeMap<String, Upstream>,
 }
@@ -37,6 +38,7 @@ impl Default for Config {
             header: Header::default(),
             marker: Marker::default(),
             rules: Rules::default(),
+            readme: Readme::default(),
             upstream: BTreeMap::from([
                 ("wick".into(), up("vmm", SeriesFormat::File)),
                 ("aosp".into(), up("guest", SeriesFormat::ProjectFile)),
@@ -161,6 +163,48 @@ pub struct Rules {
     pub hook_for_exists: bool,
     /// `Scope-cell:` equals the 기능 cell of a table row in `docs/scope.md`.
     pub scope_cell_exists: bool,
+    /// The generated patch table in each `patches/README.md` is up to date.
+    pub readme: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Readme {
+    /// Columns of the generated patch table, in order. Must include `patch`.
+    pub columns: Vec<Column>,
+}
+
+impl Default for Readme {
+    fn default() -> Self {
+        Readme {
+            columns: vec![
+                Column::Patch,
+                Column::Summary,
+                Column::Purpose,
+                Column::HookFor,
+                Column::Layer,
+                Column::Budget,
+                Column::Upstream,
+                Column::RemoveWhen,
+                Column::ScopeCell,
+            ],
+        }
+    }
+}
+
+/// A column of the generated patch table: the patch file or one header field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Column {
+    Patch,
+    Summary,
+    Purpose,
+    HookFor,
+    Layer,
+    Budget,
+    Upstream,
+    RemoveWhen,
+    ScopeCell,
 }
 
 impl Default for Rules {
@@ -171,6 +215,7 @@ impl Default for Rules {
             layer_matches_upstream: true,
             hook_for_exists: true,
             scope_cell_exists: true,
+            readme: true,
         }
     }
 }
@@ -215,6 +260,13 @@ pub fn load(root: &Path) -> Result<Config, Error> {
     let bad = |m: String| Err(Error(format!("{CONFIG_FILE}: {m}")));
     if cfg.budget.cap == 0 {
         return bad("[budget] cap must be at least 1".into());
+    }
+    let cols = &cfg.readme.columns;
+    if !cols.contains(&Column::Patch) {
+        return bad("[readme] columns must include \"patch\"".into());
+    }
+    if (1..cols.len()).any(|i| cols[..i].contains(&cols[i])) {
+        return bad("[readme] columns lists a column twice".into());
     }
     for (x, u) in &cfg.upstream {
         let dir = root.join(UPSTREAM_ROOT).join(x);

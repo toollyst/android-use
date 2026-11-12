@@ -27,6 +27,12 @@ series = true                  # series가 모든 패치를 정확히 한 번 �
 layer_matches_upstream = true  # `Layer:`가 아래 [upstream.<x>].layer와 같다
 hook_for_exists = true         # `Hook-for:` 경로가 레포에 있다
 scope_cell_exists = true       # `Scope-cell:`이 docs/scope.md 표 행의 기능 칸과 같다
+readme = true                  # patches/README.md의 생성된 패치 표가 헤더와 같다 (`cargo xtask patch-readme`로 생성)
+
+[readme]
+# 생성되는 패치 표의 열과 순서. "patch"는 반드시 포함.
+# 가능한 값: patch, summary, purpose, hook-for, layer, budget, upstream, remove-when, scope-cell
+columns = ["patch", "summary", "purpose", "hook-for", "layer", "budget", "upstream", "remove-when", "scope-cell"]
 
 # third_party/<x>마다: Layer 대응, series 형식("file" = 한 줄에 패치 파일 하나,
 # "project-file" = `<project-path> <patch-file>`), 선택적으로 cap 재정의(cap = <줄 수>).

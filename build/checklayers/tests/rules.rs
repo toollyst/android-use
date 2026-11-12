@@ -141,6 +141,50 @@ impl Fx {
         self.file(rel, &old.replacen(from, to, 1))
     }
 
+    /// Sets `[contracts] allow_external` in the fixture's LAYERS.toml (parsed, not matched as
+    /// text, so the test does not depend on how the real file spells the list).
+    fn set_allow_external(&mut self, names: &[&str]) -> &mut Fx {
+        let mut doc: toml::Table =
+            toml::from_str(&fs::read_to_string(self.path("LAYERS.toml")).unwrap()).unwrap();
+        let contracts = doc
+            .entry("contracts")
+            .or_insert_with(|| toml::Value::Table(toml::Table::new()))
+            .as_table_mut()
+            .expect("[contracts] is a table");
+        contracts.insert(
+            "allow_external".into(),
+            toml::Value::Array(names.iter().map(|n| toml::Value::from(*n)).collect()),
+        );
+        let text = toml::to_string(&doc).unwrap();
+        self.file("LAYERS.toml", &text)
+    }
+}
+
+/// `[contracts] allow_external` of the real LAYERS.toml.
+fn real_allow_external() -> Vec<String> {
+    let doc: toml::Table =
+        toml::from_str(&fs::read_to_string(repo_root().join("LAYERS.toml")).unwrap()).unwrap();
+    doc.get("contracts")
+        .and_then(|c| c.get("allow_external"))
+        .and_then(|a| a.as_array())
+        .map(|a| {
+            a.iter()
+                .map(|v| v.as_str().expect("crate name").to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Crate names that are certainly not in the real allowlist (`cargo metadata --no-deps` does
+/// not resolve them, so they need not exist).
+fn unlisted(n: usize) -> Vec<String> {
+    let real = real_allow_external();
+    let names: Vec<String> = (0..n).map(|i| format!("droiduse-unlisted-{i}")).collect();
+    assert!(names.iter().all(|n| !real.contains(n)));
+    names
+}
+
+impl Fx {
     /// Writes a crate at `rel` with path dependencies on other fixture crates.
     /// A dep written as `dev:<path>` becomes a dev-dependency.
     fn krate(&mut self, rel: &str, deps: &[&str]) -> &mut Fx {
@@ -555,107 +599,147 @@ fn contracts_depending_on_any_layer_fails() {
 
 #[test]
 fn contracts_external_dependency_fails() {
-    // Normal, build and dev dependencies all count; none of these is in the allowlist.
-    for (section, dep) in [
-        ("dependencies", "serde = \"1\""),
-        ("build-dependencies", "cc = \"1\""),
-        ("dev-dependencies", "proptest = \"1\""),
-        ("target.'cfg(unix)'.dependencies", "libc = \"0.2\""),
-    ] {
+    // Normal, build, dev and target-specific dependencies all count.
+    let names = unlisted(4);
+    for (section, name) in [
+        "dependencies",
+        "build-dependencies",
+        "dev-dependencies",
+        "target.'cfg(unix)'.dependencies",
+    ]
+    .into_iter()
+    .zip(&names)
+    {
         let mut fx = Fx::clean();
         fx.append(
             "contracts/device/Cargo.toml",
-            &format!("[{section}]\n{dep}\n"),
+            &format!("[{section}]\n{name} = \"1\"\n"),
         );
         let r = fx.run();
         assert_rules(&r, &["dep/contracts-external"]);
         assert_message(&r, "contracts/device/Cargo.toml: dep/contracts-external");
+        assert_message(&r, &format!("`{name}`"));
     }
 
     // Renaming does not hide the real crate name.
     let mut fx = Fx::clean();
     fx.append(
         "contracts/device/Cargo.toml",
-        "[dependencies]\nmyserde = { package = \"serde\", version = \"1\" }\n",
+        &format!(
+            "[dependencies]\nalias = {{ package = \"{}\", version = \"1\" }}\n",
+            names[0]
+        ),
     );
     let r = fx.run();
     assert_rules(&r, &["dep/contracts-external"]);
-    assert_message(&r, "`serde`");
+    assert_message(&r, &format!("`{}`", names[0]));
 
     // Other layers are not restricted by the contracts allowlist.
     let mut fx = Fx::clean();
     fx.append(
         "host/base/ipc/Cargo.toml",
-        "[dependencies]\nlibc = \"0.2\"\n",
+        &format!("[dependencies]\n{} = \"1\"\n", names[0]),
     );
     assert_clean(&fx.run());
 }
 
-/// The `[contracts] allow_external` line of the real `LAYERS.toml`.
-const REAL_ALLOW_EXTERNAL: &str =
-    "allow_external = [\"async-trait\", \"bytes\", \"futures-core\", \"futures-io\"]";
-
 #[test]
 fn contracts_external_allowlist_applies() {
-    // The real allowlist, in every dependency kind.
+    // Every entry of the real allowlist passes, spread over every dependency kind.
+    let real = real_allow_external();
+    let sections = [
+        "dependencies",
+        "build-dependencies",
+        "dev-dependencies",
+        "target.'cfg(unix)'.dependencies",
+    ];
+    let mut by_section: Vec<Vec<&str>> = vec![Vec::new(); sections.len()];
+    for (i, name) in real.iter().enumerate() {
+        by_section[i % sections.len()].push(name);
+    }
+    let mut text = String::new();
+    for (section, names) in sections.iter().zip(&by_section) {
+        if names.is_empty() {
+            continue;
+        }
+        text.push_str(&format!("[{section}]\n"));
+        for n in names {
+            text.push_str(&format!("{n} = \"1\"\n"));
+        }
+    }
     let mut fx = Fx::clean();
-    fx.append(
-        "contracts/device/Cargo.toml",
-        "[dependencies]\nbytes = \"1\"\n[build-dependencies]\nfutures-core = \"0.3\"\n\
-         [dev-dependencies]\nasync-trait = \"0.1\"\n\
-         [target.'cfg(unix)'.dependencies]\nfutures-io = \"0.3\"\n",
-    );
+    fx.append("contracts/device/Cargo.toml", &text);
     assert_clean(&fx.run());
 
-    // An added entry applies; anything unlisted next to it is still rejected.
+    // An entry added to the list applies; anything unlisted next to it is still rejected.
+    let names = unlisted(2);
     let mut fx = Fx::clean();
-    fx.edit(
-        "LAYERS.toml",
-        REAL_ALLOW_EXTERNAL,
-        "allow_external = [\"serde\"]",
-    );
+    fx.set_allow_external(&[&names[0]]);
     fx.append(
         "contracts/device/Cargo.toml",
-        "[dependencies]\nserde = \"1\"\n[dev-dependencies]\nproptest = \"1\"\n",
+        &format!(
+            "[dependencies]\n{} = \"1\"\n[dev-dependencies]\n{} = \"1\"\n",
+            names[0], names[1]
+        ),
     );
     let r = fx.run();
     assert_rules(&r, &["dep/contracts-external"]);
-    assert_message(&r, "`proptest`");
-    assert_no_message(&r, "`serde`");
+    assert_message(&r, &format!("`{}`", names[1]));
+    assert_no_message(&r, &format!("`{}`", names[0]));
+
+    // An entry removed from the list no longer applies.
+    if let Some(first) = real.first() {
+        let rest: Vec<&str> = real.iter().skip(1).map(String::as_str).collect();
+        let mut fx = Fx::clean();
+        fx.set_allow_external(&rest);
+        fx.append(
+            "contracts/device/Cargo.toml",
+            &format!("[dependencies]\n{first} = \"1\"\n"),
+        );
+        let r = fx.run();
+        assert_rules(&r, &["dep/contracts-external"]);
+        assert_message(&r, &format!("`{first}`"));
+    }
 }
 
 #[test]
 fn contracts_external_allowlist_cannot_be_abused() {
-    // A listed name from a non-crates.io source (git) is still a violation.
+    let names = unlisted(1);
     let mut fx = Fx::clean();
+    fx.set_allow_external(&[&names[0]]);
+
+    // A listed name from a non-crates.io source (git) is still a violation.
     fx.append(
         "contracts/device/Cargo.toml",
-        "[dependencies]\nbytes = { git = \"https://example.invalid/bytes\" }\n",
+        &format!(
+            "[dependencies]\n{} = {{ git = \"https://example.invalid/x\" }}\n",
+            names[0]
+        ),
     );
     let r = fx.run();
     assert_rules(&r, &["dep/contracts-external"]);
-    assert_message(&r, "git+https://example.invalid/bytes");
+    assert_message(&r, "git+https://example.invalid/x");
 
     // A listed name used as a rename alias for an unlisted crate is still a violation.
     let mut fx = Fx::clean();
+    fx.set_allow_external(&[&names[0]]);
     fx.append(
         "contracts/device/Cargo.toml",
-        "[dependencies]\nbytes = { package = \"serde\", version = \"1\" }\n",
+        &format!(
+            "[dependencies]\n{} = {{ package = \"droiduse-unlisted-other\", version = \"1\" }}\n",
+            names[0]
+        ),
     );
     let r = fx.run();
     assert_rules(&r, &["dep/contracts-external"]);
-    assert_message(&r, "`serde`");
+    assert_message(&r, "`droiduse-unlisted-other`");
 
     // No wildcard (and no malformed names) in the allowlist.
     let mut fx = Fx::clean();
-    fx.edit(
-        "LAYERS.toml",
-        REAL_ALLOW_EXTERNAL,
-        "allow_external = [\"*\", \"ser de\"]",
-    );
+    fx.set_allow_external(&["*", "ser de"]);
     fx.append(
         "contracts/device/Cargo.toml",
-        "[dependencies]\nserde = \"1\"\n",
+        &format!("[dependencies]\n{} = \"1\"\n", names[0]),
     );
     let r = fx.run();
     assert_rules(&r, &["config/invalid", "dep/contracts-external"]);
@@ -666,11 +750,11 @@ fn contracts_external_allowlist_cannot_be_abused() {
     fx.edit(
         "contracts/LAYER.toml",
         "[layer]\n",
-        "[layer]\nallow_external = [\"serde\"]\n",
+        &format!("[layer]\nallow_external = [\"{}\"]\n", names[0]),
     );
     fx.append(
         "contracts/device/Cargo.toml",
-        "[dependencies]\nserde = \"1\"\n",
+        &format!("[dependencies]\n{} = \"1\"\n", names[0]),
     );
     // Fail closed: the invalid file is not applied, so its allow_siblings is lost too.
     assert_rules(
