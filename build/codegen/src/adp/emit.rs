@@ -500,7 +500,19 @@ fn scope(s: Scope) -> TokenStream {
     }
 }
 
-fn command(domain: &str, c: &Command, s: &Settings) -> TokenStream {
+/// The `targetTypes` enum as a path from a domain module.
+fn target_type_path((module, id): &(String, String)) -> TokenStream {
+    let m = ident(module);
+    let t = ident(id);
+    quote!(super::#m::#t)
+}
+
+fn command(
+    domain: &str,
+    c: &Command,
+    target_type: Option<&(String, String)>,
+    s: &Settings,
+) -> TokenStream {
     let method = format!("{domain}.{}", c.name);
     let pdoc = docs(Some(format!("Parameters of `{method}`.")), &c.meta);
     let rdoc = doc_lines(&[format!("Result of `{method}`.")]);
@@ -509,6 +521,21 @@ fn command(domain: &str, c: &Command, s: &Settings) -> TokenStream {
     let p = ident(&c.params_name);
     let r = ident(&c.returns_name);
     let sc = scope(c.scope);
+    // `target_type` is `Some` whenever a command has `targetTypes` (checked in the model).
+    let tt = target_type.map(|tt| {
+        let path = target_type_path(tt);
+        let value = match &c.target_types {
+            Some(vs) => {
+                let items = vs.iter().map(|v| {
+                    let i = ident(&v.ident);
+                    quote!(#path::#i)
+                });
+                quote!(::core::option::Option::Some(&[#(#items),*]))
+            }
+            None => quote!(::core::option::Option::None),
+        };
+        quote!(const TARGET_TYPES: ::core::option::Option<&'static [#path]> = #value;)
+    });
     quote! {
         #params
         #returns
@@ -516,6 +543,7 @@ fn command(domain: &str, c: &Command, s: &Settings) -> TokenStream {
             type Returns = #r;
             const METHOD: &'static str = #method;
             const SCOPE: super::Scope = #sc;
+            #tt
         }
     }
 }
@@ -538,7 +566,13 @@ fn event(domain: &str, e: &Event, s: &Settings) -> TokenStream {
     }
 }
 
-fn module(d: &Domain, head: String, extra: &[String], s: &Settings) -> TokenStream {
+fn module(
+    d: &Domain,
+    head: String,
+    extra: &[String],
+    target_type: Option<&(String, String)>,
+    s: &Settings,
+) -> TokenStream {
     let mut doc_meta = d.meta.clone();
     if !extra.is_empty() {
         let mut desc = doc_meta.description.unwrap_or_default();
@@ -553,7 +587,10 @@ fn module(d: &Domain, head: String, extra: &[String], s: &Settings) -> TokenStre
     let doc = docs(Some(head), &doc_meta);
     let m = ident(&d.module);
     let types = d.types.iter().map(|t| type_def(t, s));
-    let commands = d.commands.iter().map(|c| command(&d.name, c, s));
+    let commands = d
+        .commands
+        .iter()
+        .map(|c| command(&d.name, c, target_type, s));
     let events = d.events.iter().map(|e| event(&d.name, e, s));
     let enums = d.enums.iter().map(inline_enum);
     quote! {
@@ -616,12 +653,25 @@ pub(crate) fn emit(def: &Def, version: &str, s: &Settings) -> String {
         &def.envelope,
         "The message envelope (protocol.json `envelope`).".into(),
         &[format!("Binary messages: {}", def.binary)],
+        None,
         s,
     );
+    let tt = def.target_type.as_ref();
     let domains = def
         .domains
         .iter()
-        .map(|d| module(d, format!("The `{}` domain.", d.name), &[], s));
+        .map(|d| module(d, format!("The `{}` domain.", d.name), &[], tt, s));
+    let trait_tt = tt.map(|(module, id)| {
+        let m = ident(module);
+        let t = ident(id);
+        let doc = format!(
+            " The target types whose sessions accept the command (protocol.json `targetTypes`, values of `{module}::{id}`); in the session of another type: INVALID_REQUEST. `None`: not fixed yet, which is not the same as every type. Always `None` for connection-scoped commands."
+        );
+        quote! {
+            #[doc = #doc]
+            const TARGET_TYPES: ::core::option::Option<&'static [#m::#t]>;
+        }
+    });
     let tokens = quote! {
         /// The ADP protocol version (contracts/adp/VERSION).
         pub const PROTOCOL_VERSION: &str = #version;
@@ -682,6 +732,7 @@ pub(crate) fn emit(def: &Def, version: &str, s: &Settings) -> String {
             const METHOD: &'static str;
             /// Where the command may be sent.
             const SCOPE: Scope;
+            #trait_tt
         }
 
         /// An event, implemented by its parameters type.

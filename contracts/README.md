@@ -12,7 +12,7 @@
 | `adp/` | host/entrypoints/adp_server ↔ clients·외부 클라이언트 | JSON-RPC 스키마 (`docs/04-adp.md`) |
 | `node/` | control plane ↔ node | IDL(gRPC) |
 | `spi/` | 코어 ↔ 확장 구현 | Rust trait (`docs/09-oss-and-saas.md`) |
-| `codegen/` | 생성기 설정 | - |
+| `codegen/` | 없음: 생성기와 설정은 `build/codegen/` (`codegen.toml`, `cargo xtask codegen`), 생성 코드는 각 계약의 `src/generated/` | - |
 | `compat/` | 이전 버전 픽스처, 하위호환 테스트 | - |
 
 각 계약 디렉터리에는 `VERSION`(semver)이 있어야 한다. 변경 절차: `CLAUDE.md` §4

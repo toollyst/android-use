@@ -5,7 +5,9 @@
 //!   (`ErrorCode` from `errors[]`), `envelope` (the `envelope` types; `$ref` to them is
 //!   `envelope.<Type>`) and `wire` (string-carried values); root items `PROTOCOL_VERSION`
 //!   (from `VERSION`), `Scope`, `Nullable<T>`, and the traits `Command` (implemented by
-//!   `<Command>Params`: `Returns`, `METHOD`, `SCOPE`) and `Event` (by `<Event>Event`);
+//!   `<Command>Params`: `Returns`, `METHOD`, `SCOPE`, and `TARGET_TYPES` from `targetTypes`
+//!   when the definition has the `target_type` enum; `None` = not fixed yet) and `Event`
+//!   (by `<Event>Event`);
 //! - object types → structs with `#[serde(rename_all = "camelCase")]` (an explicit `rename`
 //!   only where a name does not round-trip), `object` without `properties` → any JSON object
 //!   (`serde_json::Map`), tagged unions (`discriminator` + `variants`, keyed by `kind`) →
@@ -67,6 +69,8 @@ pub struct Settings {
     pub deny_unknown_fields: bool,
     /// Property key (`UI.getTree.parameters.depth`) → width.
     pub integer: BTreeMap<String, IntegerWidth>,
+    /// The string enum (`<Domain>.<Type>`) whose values `targetTypes` lists.
+    pub target_type: String,
 }
 
 impl Default for Settings {
@@ -75,6 +79,7 @@ impl Default for Settings {
             integer_without_format: IntegerDefault::I64,
             deny_unknown_fields: true,
             integer: BTreeMap::new(),
+            target_type: "Target.TargetType".to_string(),
         }
     }
 }

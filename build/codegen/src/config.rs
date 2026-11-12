@@ -54,6 +54,13 @@ pub struct Adp {
     /// Per-property width of an `integer` without `format`.
     #[serde(default)]
     pub integer: BTreeMap<String, IntegerWidth>,
+    /// The string enum whose values `targetTypes` lists.
+    #[serde(default = "default_target_type")]
+    pub target_type: String,
+}
+
+fn default_target_type() -> String {
+    Settings::default().target_type
 }
 
 fn default_integer() -> IntegerDefault {
@@ -70,6 +77,7 @@ impl Adp {
             integer_without_format: self.integer_without_format,
             deny_unknown_fields: self.deny_unknown_fields,
             integer: self.integer.clone(),
+            target_type: self.target_type.clone(),
         }
     }
 }

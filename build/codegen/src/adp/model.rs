@@ -29,6 +29,9 @@ pub(crate) struct Def {
     /// `envelope.binary`: the binary message framing, prose.
     pub binary: String,
     pub domains: Vec<Domain>,
+    /// The `targetTypes` enum as `(module, type id)`; `None` when the definition lacks it
+    /// (then no command uses `targetTypes` and `Command` has no `TARGET_TYPES`).
+    pub target_type: Option<(String, String)>,
 }
 
 /// Where a command or event may be sent (`scope`).
@@ -99,6 +102,8 @@ pub(crate) struct Command {
     pub name: String,
     pub meta: Meta,
     pub scope: Scope,
+    /// `targetTypes` as variants of the target type enum; `None`: not fixed yet.
+    pub target_types: Option<Vec<Variant>>,
     pub params_name: String,
     pub returns_name: String,
     pub params: Vec<Field>,
@@ -223,6 +228,7 @@ const COMMAND_KEYS: &[&str] = &[
     "experimental",
     "deprecated",
     "scope",
+    "targetTypes",
     "parameters",
     "returns",
 ];
@@ -284,6 +290,7 @@ struct RCommand {
     name: String,
     meta: Meta,
     scope: Scope,
+    target_types: Option<Vec<String>>,
     params: Vec<RProp>,
     returns: Vec<RProp>,
 }
@@ -580,6 +587,25 @@ impl P1<'_> {
             .collect()
     }
 
+    /// An optional array of strings.
+    fn strings(&mut self, m: &Map<String, Value>, key: &str, loc: &str) -> Option<Vec<String>> {
+        match m.get(key)? {
+            Value::Array(a) if a.iter().all(Value::is_string) => Some(
+                a.iter()
+                    .map(|v| v.as_str().unwrap_or_default().to_string())
+                    .collect(),
+            ),
+            _ => {
+                self.ps.push(problem(
+                    "adp/type",
+                    loc,
+                    format!("`{key}` must be an array of strings"),
+                ));
+                None
+            }
+        }
+    }
+
     fn scope(&mut self, m: &Map<String, Value>, loc: &str) -> Scope {
         match self.string(m, "scope", loc).as_deref() {
             Some("connection") => Scope::Connection,
@@ -616,6 +642,7 @@ impl P1<'_> {
                 Some(RCommand {
                     meta: self.meta(cm, &cloc),
                     scope: self.scope(cm, &cloc),
+                    target_types: self.strings(cm, "targetTypes", &cloc),
                     params: self.props(cm, "parameters", &cloc),
                     returns: self.props(cm, "returns", &cloc),
                     loc: cloc,
@@ -1220,10 +1247,45 @@ impl P2<'_> {
             let rk = format!("{}.{}.returns", rd.name, c.name);
             let params = self.fields(&c.params, d, &p, &pk, true, &mut names, &mut enums);
             let returns = self.fields(&c.returns, d, &r, &rk, true, &mut names, &mut enums);
+            // checked here; resolved against the target type enum in `build`
+            let target_types = c.target_types.as_ref().map(|values| {
+                if c.scope == Scope::Connection {
+                    self.err(
+                        "adp/shape",
+                        &c.loc,
+                        "`targetTypes` applies to commands with scope session or both",
+                    );
+                }
+                if values.is_empty() {
+                    self.err(
+                        "adp/shape",
+                        &c.loc,
+                        "`targetTypes` is empty: omit it while no target type is fixed",
+                    );
+                }
+                let mut seen = BTreeSet::new();
+                for v in values {
+                    if !seen.insert(v) {
+                        self.err(
+                            "adp/duplicate",
+                            &c.loc,
+                            format!("target type {v:?} is listed twice in `targetTypes`"),
+                        );
+                    }
+                }
+                values
+                    .iter()
+                    .map(|v| Variant {
+                        wire: v.clone(),
+                        ident: String::new(),
+                    })
+                    .collect()
+            });
             commands.push(Command {
                 name: c.name.clone(),
                 meta: c.meta.clone(),
                 scope: c.scope,
+                target_types,
                 params_name: p,
                 returns_name: r,
                 params,
@@ -1647,10 +1709,76 @@ pub(crate) fn build(v: &Value, settings: &Settings) -> Result<Def, Vec<Problem>>
     let envelope = domains.remove(0);
     // Ref modules were computed with the envelope at position 0; positions are not used
     // after boxing.
+    let target_type = resolve_target_types(&mut domains, settings)?;
     Ok(Def {
         errors,
         envelope,
         binary: raw.envelope.binary,
         domains,
+        target_type,
     })
+}
+
+/// The `targetTypes` enum (setting `target_type`, `<Domain>.<Type>`): `(module, type id)`
+/// when the definition has it, after mapping every command's `targetTypes` to its variants.
+fn resolve_target_types(
+    domains: &mut [Domain],
+    settings: &Settings,
+) -> Result<Option<(String, String)>, Vec<Problem>> {
+    let setting_loc = "build/codegen/codegen.toml [adp] target_type";
+    let wanted = settings.target_type.split_once('.');
+    let found = wanted.and_then(|(d, t)| {
+        let dom = domains.iter().find(|x| x.name == d)?;
+        let td = dom.types.iter().find(|x| x.id == t)?;
+        Some((dom.module.clone(), td.id.clone(), td.body.clone()))
+    });
+    let used = domains
+        .iter()
+        .flat_map(|d| &d.commands)
+        .any(|c| c.target_types.is_some());
+    let (module, id, variants) = match found {
+        Some((m, id, TypeBody::Enum(vs))) => (m, id, vs),
+        Some(_) => {
+            return Err(vec![problem(
+                "adp/setting",
+                setting_loc,
+                format!("{:?} is not a string enum type", settings.target_type),
+            )]);
+        }
+        None if used => {
+            return Err(vec![problem(
+                "adp/setting",
+                setting_loc,
+                format!(
+                    "{:?} names no type of the definition, but commands use `targetTypes`",
+                    settings.target_type
+                ),
+            )]);
+        }
+        None => return Ok(None),
+    };
+    let mut ps = Vec::new();
+    for d in domains.iter_mut() {
+        let dname = d.name.clone();
+        for c in &mut d.commands {
+            for v in c.target_types.iter_mut().flatten() {
+                match variants.iter().find(|x| x.wire == v.wire) {
+                    Some(x) => v.ident = x.ident.clone(),
+                    None => ps.push(problem(
+                        "adp/unresolved-ref",
+                        format!("{dname}.{}", c.name),
+                        format!(
+                            "target type {:?} is not a value of {}",
+                            v.wire, settings.target_type
+                        ),
+                    )),
+                }
+            }
+        }
+    }
+    if ps.is_empty() {
+        Ok(Some((module, id)))
+    } else {
+        Err(ps)
+    }
 }
