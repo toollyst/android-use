@@ -75,7 +75,6 @@ trait Machine: Send + Sync {
 호스트와 게스트(adpd) 사이의 vsock 프로토콜.
 ```
 Hello { protocol_version, build_fingerprint, capabilities[] }   // 버전 협상 필수
-Auth  { session_token }                                         // 인스턴스별 토큰
 Auth.Rebind { prev_token, vmgenid } → { session_token }       // restore 직후 1회, 복제본별 새 토큰
 
 // 인스펙션
@@ -103,7 +102,9 @@ Debug.SetAdb      { enabled }
 // 복원
 Restore.Notify    ← { generation, completed_steps[] }   // VMGenID 변경 후 게스트 재초기화 완료 알림
 ```
-- gRPC over vsock이고, vsock 포트 두 개에 gRPC 채널 두 개다. 호스트 채널은 호스트가 서버이고 게스트 → 호스트 서비스(Hello, Auth, Rebind, 앞으로 게스트가 시작하는 서비스)를 제공한다. 게스트 채널은 adpd가 서버이고 호스트 → 게스트 서비스(Inspect, WebView, Debug 등)를 제공하며, 그 포트는 adpd의 SELinux 도메인만 bind할 수 있다. 포트 번호는 기본값이 있는 설정이다. 메시지 크기 제한은 채널마다 설정한다.
+- gRPC over vsock, with two gRPC channels on two vsock ports. On the host channel the host is the server and offers the guest → host services (Hello, Rebind, and future guest-initiated services). On the guest channel adpd is the server and offers the host → guest services (Inspect, WebView, Debug, ...); only adpd's SELinux domain may listen on vsock. The port numbers are settings; defaults: host channel 7100, guest channel 7101. The message size limit is set per channel.
+- There is no separate authentication call: the session token every call carries is the authentication. `Auth.Rebind` rotates it.
+- Errors are gRPC status codes. A failure with a droiduse `ErrorCode` also carries `google.rpc.ErrorInfo` (reason = the `ErrorCode` name, domain `droiduse.guest_link`) in the `grpc-status-details-bin` trailer. A version mismatch at Hello is `FAILED_PRECONDITION` with reason `UNSUPPORTED_VERSION`.
 - 두 채널의 모든 호출이 세션 토큰을 메타데이터 `droiduse-session-token-bin`에, trace를 W3C Trace Context(`traceparent`, `tracestate`) 메타데이터에 싣는다. 토큰이 없거나 틀리면 `UNAUTHENTICATED`다. 토큰은 불투명 비밀(bytes), `vmgenid`는 16바이트다.
 - 첫 세션 토큰은 VMM이 붙이는 전용 비밀 디스크로 게스트에 가고, 그 디스크는 adpd의 SELinux 도메인만 읽을 수 있다. `Auth.Rebind`가 restore 뒤마다 토큰을 바꾼다.
 - KeyMint HAL 채널은 guest_link와 **분리된 전용 vsock 포트**를 쓰며 계약은 `keymint`다 (아래).

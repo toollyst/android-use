@@ -136,3 +136,4 @@ v1의 모든 호스트에서 같은 바이너리, 같은 API로 M1~M4가 성립�
 | GMS | microG / Google 파트너십 | Play Integrity strong이 필요한 앱은 제품 범위에서 명시적으로 제외 |
 | TLS 가시성 기본값 | off (제안) | 정책으로만 켬 |
 | x86_64 호스트에서 ARM 앱 실행 | v1 포함 / v1 이후 | x86_64 호스트에서 arm64 전용 앱을 돌리려면 NativeBridge(berberis)가 필요하다. 현재는 v1 이후로 분류 |
+| guest_link secret token disk | How the disk appears in the machine contract (`VmSpec`) / whether `Auth.Rebind` also rewrites the disk to the new token | Decided once the wick integration is further along. The guest_link proto keeps an OPEN note |
