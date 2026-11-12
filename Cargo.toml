@@ -19,6 +19,7 @@
 resolver = "3"
 members = [
     "build/checklayers",
+    "build/codegen",
     "build/patchlint",
     "build/xtask",
     "contracts/*",
@@ -40,7 +41,29 @@ async-trait = "0.1.92"
 bytes = { version = "1.12.1", default-features = false }
 futures-core = { version = "0.3.34", default-features = false, features = ["alloc"] }
 futures-io = "0.3.34"
+# prost: guest_link·node 생성 메시지 타입의 런타임 (prost-build 출력이 `::prost::Message` derive와
+# `::prost::bytes`, `::prost::alloc`을 쓴다). 버전은 build/codegen의 prost-build와 같은 0.14 계열이어야 한다.
+prost = { version = "0.14.5", default-features = false, features = ["derive", "std"] }
+# base64: adp `binary` 타입의 base64 (RFC 4648 §4, 패딩·정규형 강제) 인코딩·디코딩.
+base64 = "0.23.1"
+# serde, serde_json (아래, build/ 항목과 공용): adp 생성 타입의 JSON (역)직렬화 derive와,
+# properties 없는 `object`(임의 JSON 객체: envelope의 params·result·data)의 표현.
 # build/ 툴링 전용.
+# build/codegen: prost-build·prost-types (proto → Rust 메시지, protoc의 FileDescriptorSet 해석),
+# ureq (고정 protoc 다운로드, rustls), zip (공식 protoc 릴리스 zip 해제), sha2 (protoc 고정 해시 검증),
+# dirs (레포 밖 캐시 디렉터리), quote·proc-macro2·syn·prettyplease (adp 생성 코드 조립·출력, prost-build와 같은 출력기),
+# heck (이름 변환).
+dirs = "7"
+heck = "0.5.0"
+prettyplease = "0.3"
+proc-macro2 = "1"
+prost-build = { version = "0.14.5", default-features = false, features = ["format"] }
+prost-types = "0.14.5"
+quote = "1"
+sha2 = "0.11"
+syn = { version = "3", features = ["full"] }
+ureq = { version = "3.5.1", default-features = false, features = ["rustls"] }
+zip = { version = "9.5.1", default-features = false, features = ["deflate"] }
 # diffy: git diff 파서 (build/patchlint). mailparse: RFC 5322/2047 헤더 파서 (build/patchlint).
 # globset: OWNERS glob 매칭 (build/patchlint, ignore가 이미 쓰는 crate).
 diffy = { version = "0.5.2", default-features = false }

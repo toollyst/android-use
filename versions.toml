@@ -34,6 +34,22 @@ keymint    = "0.1.0"          # 프레이밍·인증 버전. 페이로드는 [ao
 node       = "0.1.0"
 spi        = "0.1.0"
 
+[protoc]
+# build/codegen(`cargo xtask codegen`)이 쓰는 공식 protoc 릴리스. 이 버전·해시와 맞지 않는 protoc는 쓰지 않는다.
+# 받은 zip은 sha256이 아래 값과 같을 때만 레포 밖 캐시에 두고, 실행 전마다 다시 검증한다.
+# PATH의 protoc, PROTOC 환경 변수는 보지 않는다. 바이너리를 레포에 커밋하지 않는다.
+# 올릴 때: version과 플랫폼별 sha256을 함께 바꾸고 `cargo xtask codegen`으로 재생성한다.
+version = "36.2"
+url     = "https://github.com/protocolbuffers/protobuf/releases/download/v{version}/protoc-{version}-{platform}.zip"
+
+[protoc.sha256]
+# 키는 릴리스 zip의 플랫폼 이름이다. 여기 없는 호스트에서는 생성이 실패한다.
+linux-aarch_64 = "8b8f18bd2b30346efbc698dd5a73dd7c805f3ef8380f6dfc95c768f3f1852f6a"
+linux-x86_64   = "121f6c7afe1d4d0e3ea6aab9432038599250134cbf4474cb1167d2c7decd4278"
+osx-aarch_64   = "9cd98a532c5c5e0c4161314de0225de27e4c8a323917b6ea7b1b714d3ae23466"
+osx-x86_64     = "228cc7add4616cc14ca5e80dee83209d44449a7aee95a914ae748fa374efb078"
+win64          = "f0c128dc0d8492eceece83bb459a4c0e316764b929ffbf1aa416357fd644edd3"
+
 [images]
 # 빌드 산출물 해시 (CI가 채움)
 wick_arm64  = "TBD"

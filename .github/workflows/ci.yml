@@ -36,6 +36,10 @@ jobs:
       - name: Patch lint
         shell: bash
         run: bash tools/patch/lint.sh
+      # 커밋된 생성 코드가 IDL·설정과 일치하는지 (낡음·손 편집·누락·남는 파일은 실패).
+      # protoc는 versions.toml [protoc]의 공식 릴리스만, sha256을 검증한 뒤 레포 밖 캐시에서 쓴다.
+      - name: Codegen
+        run: cargo --locked xtask codegen --check
       - name: Format
         run: cargo fmt --check
       - name: Clippy
