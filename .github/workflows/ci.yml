@@ -1,5 +1,5 @@
-# 호스트 쪽 기본 검사 (docs/11-quality-and-testing.md §5, CLAUDE.md §6).
-# 툴체인은 rust-toolchain.toml 이 고정한다. 서드파티 액션은 커밋 SHA로 고정한다.
+# Host-side baseline checks (docs/11-quality-and-testing.md §5, CLAUDE.md §6).
+# The toolchain is pinned by rust-toolchain.toml. Third-party actions are pinned by commit SHA.
 name: ci
 
 on:
@@ -10,9 +10,11 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request cancels its older run. Runs on main are never cancelled,
+# so every main commit gets a complete result.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -22,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # v1 호스트: Linux x86_64·arm64, macOS arm64, Windows x86_64
+        # v1 hosts: Linux x86_64 and arm64, macOS arm64, Windows x86_64
         os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -30,19 +32,22 @@ jobs:
           persist-credentials: false
       - name: Install pinned toolchain
         run: rustup show active-toolchain || rustup toolchain install
-      # --locked: 이 단계가 먼저 Cargo.lock을 고쳐 쓰면 뒤의 --locked 단계가 낡은 lock을 놓친다.
+      # --locked: if this first step rewrote Cargo.lock, the later --locked steps would miss a
+      # stale lock file.
       - name: Layer rules
         run: cargo --locked xtask check-layers
       - name: Patch lint
         shell: bash
         run: bash tools/patch/lint.sh
-      # 커밋된 생성 코드가 IDL·설정과 일치하는지 (낡음·손 편집·누락·남는 파일은 실패).
-      # protoc는 versions.toml [protoc]의 공식 릴리스만, sha256을 검증한 뒤 레포 밖 캐시에서 쓴다.
+      # The committed generated code matches the IDL and settings (stale, hand-edited, missing
+      # or orphan files fail). protoc is only the official release pinned in versions.toml
+      # [protoc], verified by sha256 and kept in a cache outside the repo.
       - name: Codegen
         run: cargo --locked xtask codegen --check
       - name: Format
         run: cargo fmt --check
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # --no-fail-fast: every test target runs and reports, also after one of them fails.
       - name: Test
-        run: cargo test --workspace --locked
+        run: cargo test --workspace --locked --no-fail-fast
