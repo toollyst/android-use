@@ -24,6 +24,8 @@ members = [
     "build/codegen",
     "build/patchlint",
     "build/xtask",
+    "clients/mcp",
+    "clients/sdk/rust",
     "contracts/*",
     "host/entrypoints/adp_server",
     "host/runtime/auth",
@@ -58,7 +60,8 @@ base64 = "0.23.1"
 # generated adp types, and the representation of an `object` without properties (an arbitrary JSON
 # object: params, result and data of the envelope).
 # host/ layers. tracing: spans at each layer, so one trace follows a call (docs/02-architecture.md §5).
-# tokio: test executor only (dev-dependency); no layer depends on an async runtime yet.
+# tokio: the async runtime (owner decision); host/ layers use it only as a test executor so far,
+# clients/ at run time (each crate adds the features it needs).
 tracing = { version = "0.1.44", default-features = false, features = ["std"] }
 tokio = { version = "1.54.1", default-features = false, features = ["macros", "rt"] }
 # host/runtime/auth: getrandom (OS CSPRNG for the server token), subtle (constant-time digest
@@ -75,8 +78,11 @@ http-body-util = "0.1.5"
 hyper = { version = "1.12.0", features = ["http1", "server"] }
 hyper-util = { version = "0.1.21", features = ["tokio"] }
 semver = "1.0.28"
-tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "handshake"] }
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["ansi", "fmt", "json", "std"] }
+# clients/ only. rmcp: the official MCP Rust SDK (clients/mcp). The clients also use tokio-tungstenite
+# (the ADP WebSocket client, hence `connect`), futures-util and getrandom from above.
+rmcp = { version = "3.9.0", default-features = false }
 # build/ tooling only.
 # build/codegen: prost-build, prost-types (proto → Rust messages, reading protoc's FileDescriptorSet),
 # ureq (pinned protoc download, rustls), zip (unpacking the official protoc release zip), sha2 (checking
