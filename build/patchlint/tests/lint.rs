@@ -27,7 +27,7 @@ Layer:        vmm
 Budget:       4
 Upstream:     n/a
 Remove-when:  upstream offers an equivalent API
-Scope-cell:   Android 부팅 (boot.img/vendor_boot/bootconfig)
+Scope-cell:   Android boot (boot.img/vendor_boot/bootconfig)
 ---
  src/vmm/src/builder.rs | 3 +++
  1 file changed, 3 insertions(+)
@@ -223,8 +223,8 @@ fn with_field(field: &str, value: Option<&str>) -> String {
 /// `GOOD` with an extra commit-message line after `Scope-cell:`.
 fn with_extra(line: &str) -> String {
     GOOD.replace(
-        "Scope-cell:   Android 부팅 (boot.img/vendor_boot/bootconfig)\n",
-        &format!("Scope-cell:   Android 부팅 (boot.img/vendor_boot/bootconfig)\n{line}\n"),
+        "Scope-cell:   Android boot (boot.img/vendor_boot/bootconfig)\n",
+        &format!("Scope-cell:   Android boot (boot.img/vendor_boot/bootconfig)\n{line}\n"),
     )
 }
 
@@ -818,12 +818,12 @@ fn hook_for_exists_rule() {
 
 #[test]
 fn scope_cell_exists_rule() {
-    for v in ["Nope", "기능", "M1", "Android 부팅"] {
+    for v in ["Nope", "Feature", "M1", "Android boot"] {
         let r = lint(&with_field("Scope-cell:", Some(v)));
         assert_rules(&r, &["patch/scope-cell"]);
     }
     // Another real row passes.
-    assert_clean(&lint(&with_field("Scope-cell:", Some("  View 트리"))));
+    assert_clean(&lint(&with_field("Scope-cell:", Some("  View tree"))));
 
     let fx = Fx::new();
     fx.cfg("scope_cell_exists = true", "scope_cell_exists = false");
@@ -1007,7 +1007,7 @@ fn readme_table_is_generated_from_headers() {
     let want = readme_with(&format!(
         "| Patch | Summary | Purpose | Hook-for | Layer | Budget | Upstream | Remove-when | Scope-cell |\n\
          |---|---|---|---|---|---|---|---|---|\n\
-         | [{WICK_NAME}]({WICK_NAME}) | add boot payload hook | let host/vmm/boot supply kernel, initrd and cmdline | host/vmm/boot | vmm | 4 | n/a | upstream offers an equivalent API | Android 부팅 (boot.img/vendor_boot/bootconfig) |\n"
+         | [{WICK_NAME}]({WICK_NAME}) | add boot payload hook | let host/vmm/boot supply kernel, initrd and cmdline | host/vmm/boot | vmm | 4 | n/a | upstream offers an equivalent API | Android boot (boot.img/vendor_boot/bootconfig) |\n"
     ));
     assert_eq!(text, want);
     // Idempotent and byte-stable.
