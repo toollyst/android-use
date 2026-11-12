@@ -1,22 +1,22 @@
-# versions.toml: 전체 구성 요소 조합의 단일 원천(lock)
-# 릴리스 번들 버전 = 이 파일 내용의 해시 기반. 어떤 이미지든 구성 요소를 역추적할 수 있어야 한다.
-# TBD 값은 M0에서 확정한다.
+# versions.toml: the single source (lock) for the combination of all components
+# Release bundle version = based on a hash of this file's contents. Every image must be traceable back to its components.
+# TBD values are fixed in M0.
 
 [bundle]
 schema = 1
 
 [wick]
 repo   = "https://github.com/toollyst/wick"
-commit = "TBD"               # wick이 Firecracker 버전을 고정함 (작성 시점: v1.18.0 기반)
+commit = "TBD"               # wick pins the Firecracker version (at the time of writing: based on v1.18.0)
 
 [aosp]
 manifest_url = "https://android.googlesource.com/platform/manifest"
-tag          = "android-17.0.0_r1"         # 릴리스 태그 고정. AOSP 소스는 연 2회(Q2/Q4) 공개
-asb_level    = "2026-06-05"         # 적용된 Android Security Bulletin 레벨 (YYYY-MM-DD)
+tag          = "android-17.0.0_r1"         # pinned release tag. AOSP source is published twice a year (Q2/Q4)
+asb_level    = "2026-06-05"         # applied Android Security Bulletin level (YYYY-MM-DD)
 
 [kernel]
-gki_branch = "TBD"           # android-common GKI 브랜치
-gki_build  = "TBD"           # Google 서명 GKI prebuilt 빌드 ID
+gki_branch = "TBD"           # android-common GKI branch
+gki_build  = "TBD"           # build ID of the Google-signed GKI prebuilt
 kmi_check  = true
 
 [gfxstream]
@@ -26,24 +26,24 @@ rev = "TBD"
 rev = "TBD"
 
 [protocol]
-# 프로세스·기기 경계를 넘어 협상하는 직렬화 계약만 둔다. in-process trait 계약(machine, instance)과
-# 표준 프로토콜 기반 계약(device = vhost-user)은 각 contracts/<name>/VERSION으로만 관리한다.
+# Only serialization contracts negotiated across process or machine boundaries are listed. In-process trait contracts (machine, instance)
+# and contracts based on a standard protocol (device = vhost-user) are versioned only by their own contracts/<name>/VERSION.
 adp        = "0.1.0"
 guest_link = "0.1.0"
-keymint    = "0.1.0"          # 프레이밍·인증 버전. 페이로드는 [aosp] 태그의 kmr wire 형식
+keymint    = "0.1.0"          # framing and authentication version. The payload is the kmr wire format of the [aosp] tag
 node       = "0.1.0"
 spi        = "0.1.0"
 
 [protoc]
-# build/codegen(`cargo xtask codegen`)이 쓰는 공식 protoc 릴리스. 이 버전·해시와 맞지 않는 protoc는 쓰지 않는다.
-# 받은 zip은 sha256이 아래 값과 같을 때만 레포 밖 캐시에 두고, 실행 전마다 다시 검증한다.
-# PATH의 protoc, PROTOC 환경 변수는 보지 않는다. 바이너리를 레포에 커밋하지 않는다.
-# 올릴 때: version과 플랫폼별 sha256을 함께 바꾸고 `cargo xtask codegen`으로 재생성한다.
+# The official protoc release used by build/codegen (`cargo xtask codegen`). No protoc that does not match this version and hash is used.
+# A downloaded zip is kept in a cache outside the repo only if its sha256 equals the value below, and it is verified again before every run.
+# protoc on PATH and the PROTOC environment variable are ignored. The binary is never committed to the repo.
+# To upgrade: change version and the per-platform sha256 together and regenerate with `cargo xtask codegen`.
 version = "36.2"
 url     = "https://github.com/protocolbuffers/protobuf/releases/download/v{version}/protoc-{version}-{platform}.zip"
 
 [protoc.sha256]
-# 키는 릴리스 zip의 플랫폼 이름이다. 여기 없는 호스트에서는 생성이 실패한다.
+# Keys are the platform names of the release zips. Generation fails on a host not listed here.
 linux-aarch_64 = "8b8f18bd2b30346efbc698dd5a73dd7c805f3ef8380f6dfc95c768f3f1852f6a"
 linux-x86_64   = "121f6c7afe1d4d0e3ea6aab9432038599250134cbf4474cb1167d2c7decd4278"
 osx-aarch_64   = "9cd98a532c5c5e0c4161314de0225de27e4c8a323917b6ea7b1b714d3ae23466"
@@ -51,6 +51,6 @@ osx-x86_64     = "228cc7add4616cc14ca5e80dee83209d44449a7aee95a914ae748fa374efb0
 win64          = "f0c128dc0d8492eceece83bb459a4c0e316764b929ffbf1aa416357fd644edd3"
 
 [images]
-# 빌드 산출물 해시 (CI가 채움)
+# hashes of build outputs (filled in by CI)
 wick_arm64  = "TBD"
 wick_x86_64 = "TBD"

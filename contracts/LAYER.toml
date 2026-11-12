@@ -1,9 +1,9 @@
 [layer]
 name = "contracts"
-allow = []          # 자기완결: 공통 타입(에러 코드, trace ID 등)도 contracts 안에 둔다
+allow = []          # self-contained: shared types (error codes, trace IDs, etc.) also live inside contracts
 
-# 형제 계약끼리는 의존 금지. 예외는 단방향 간선으로만 둔다 (모듈 = [의존해도 되는 형제 모듈]).
-# 현재 crate가 실제로 쓰는 간선만 둔다. 양방향·순환은 checklayers가 거부한다.
+# Sibling contracts must not depend on each other. Exceptions are one-way edges only (module = [sibling modules it may depend on]).
+# Only edges the crates actually use today are listed. checklayers rejects two-way and cyclic edges.
 [allow_siblings]
 machine  = ["common", "spi"]
 instance = ["common", "spi"]

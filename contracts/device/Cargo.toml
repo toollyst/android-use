@@ -1,12 +1,12 @@
-# 버전은 contracts/device/VERSION 과 같아야 한다 (단일 원천: VERSION).
-# 루트 workspace가 없어도 단독으로 빌드되고, 나중에 workspace 멤버가 되어도 그대로 동작하도록
-# workspace 상속(`*.workspace = true`)을 쓰지 않는다.
+# The version must equal contracts/device/VERSION (single source: VERSION).
+# Workspace inheritance (`*.workspace = true`) is not used, so the crate builds on its own without
+# the root workspace and keeps working unchanged once it is a workspace member.
 [package]
 name = "droiduse-contracts-device"
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
-description = "device 계약: vmm ↔ devices (vhost-user 표준 + 확장의 Rust 쪽 타입)"
+description = "device contract: vmm ↔ devices (Rust-side types of the vhost-user standard + extensions)"
 publish = false
 
 [lib]

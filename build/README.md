@@ -1,8 +1,8 @@
 # build/
 
-| 디렉터리 | 내용 |
+| Directory | Contents |
 |---|---|
-| `checklayers/` | `LAYERS.toml` + 각 `LAYER.toml` 기반 의존 규칙·금지 개념 검사 (`cargo xtask check-layers`) |
-| `patchlint/` | `third_party/<x>/patches/` 패치 lint: 헤더·마커·예산·이름·series·Layer·Hook-for·Scope-cell·README 표 (`cargo xtask patch-lint` = `tools/patch/lint.sh`, 표 생성 `cargo xtask patch-readme`, 정책 `third_party/patches.toml`) |
-| `codegen/` | contracts → Rust / Kotlin·Java / C++ / TS / Python 생성 (`cargo xtask codegen [--check]`). 현재 Rust만: guest_link·node 메시지 타입(prost-build), adp serde 타입. 설정 `build/codegen/codegen.toml`, protoc 고정 `versions.toml [protoc]` |
-| `toolchains/` | Rust 툴체인 고정, 크로스 빌드 설정 |
+| `checklayers/` | Dependency-rule and forbidden-concept checks based on `LAYERS.toml` + each `LAYER.toml` (`cargo xtask check-layers`) |
+| `patchlint/` | Lint for the patches in `third_party/<x>/patches/`: header, markers, budget, name, series, Layer, Hook-for, Scope-cell, README table (`cargo xtask patch-lint` = `tools/patch/lint.sh`, table generation `cargo xtask patch-readme`, policy `third_party/patches.toml`) |
+| `codegen/` | Generation from contracts → Rust / Kotlin, Java / C++ / TS / Python (`cargo xtask codegen [--check]`). Rust only for now: guest_link and node message types (prost-build), adp serde types. Configuration `build/codegen/codegen.toml`, protoc pin `versions.toml [protoc]` |
+| `toolchains/` | Rust toolchain pin, cross-build configuration |

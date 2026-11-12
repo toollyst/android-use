@@ -2,4 +2,4 @@
 name = "devices"
 allow = ["third_party", "base", "contracts"]
 forbid_concepts = ["android", "aosp", "package_name", "activity"]
-# 형제(vmm, 다른 devices) 직접 의존 금지
+# No direct dependencies on siblings (vmm, other devices)

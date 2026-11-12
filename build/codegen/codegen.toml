@@ -1,16 +1,16 @@
-# cargo xtask codegen 설정 (build/codegen). 생성 코드는 각 out 디렉터리에 커밋하고,
-# `cargo xtask codegen --check`가 다시 생성해 비교한다 (낡은 출력, 손으로 고친 출력, 남는 파일은 실패).
-# out 디렉터리는 생성기 소유다: 생성하지 않는 파일이 있으면 --check는 실패하고, 생성은 그 파일을 지운다.
-# protoc 버전·플랫폼별 sha256은 versions.toml [protoc].
-# 모든 키는 필수가 아니며, 생략하면 아래에 적힌 값이 기본값이다. 모르는 키는 오류다.
+# cargo xtask codegen configuration (build/codegen). Generated code is committed in each out directory,
+# and `cargo xtask codegen --check` regenerates and compares it (stale output, hand-edited output and leftover files fail).
+# The out directories belong to the generator: a file it does not generate makes --check fail, and generation deletes it.
+# The protoc version and per-platform sha256 are in versions.toml [protoc].
+# No key is required; a key left out takes the value written below as its default. An unknown key is an error.
 
-# Protocol Buffers 계약: prost-build로 메시지 타입만 만든다 (서비스 바인딩·tonic 없음).
-# root 아래의 모든 .proto를 컴파일한다 (proto 루트 = -I). 패키지마다 `<package>.rs` 하나.
+# Protocol Buffers contracts: prost-build generates message types only (no service bindings, no tonic).
+# Every .proto under root is compiled (proto root = -I). One `<package>.rs` per package.
 [[proto]]
 name = "guest_link"
 root = "contracts/guest_link/proto"
 out = "contracts/guest_link/src/generated"
-# prost-build Config::bytes / btree_map 경로. "."은 모든 필드.
+# prost-build Config::bytes / btree_map paths. "." means every field.
 bytes = ["."]
 btree_map = []
 
@@ -21,27 +21,27 @@ out = "contracts/node/src/generated"
 bytes = ["."]
 btree_map = ["."]
 
-# ADP 계약: protocol.json → serde 타입 (도메인마다 모듈 하나 + 최상위 errors 모듈).
+# ADP contract: protocol.json → serde types (one module per domain + a top-level errors module).
 [adp]
 definition = "contracts/adp/protocol.json"
 version = "contracts/adp/VERSION"
 out = "contracts/adp/src/generated"
-# format 없는 `integer`의 Rust 타입. 가능한 값: "i64", "i32", "u32", "reject"(생성 실패).
-# 기본 "i64": protocol.json은 `integer`를 32비트 이하 JSON 숫자로 정의하지만(64비트는 10진 문자열),
-# format이 없으면 부호와 폭이 정해지지 않았다. i64는 int32와 uint32의 모든 값을 손실 없이 담는
-# 가장 작은 표준 정수형이라, 부호를 추측하지 않고 유효한 값을 하나도 거부하지 않는다.
-# 문서가 폭을 정하면 protocol.json에 format을 넣거나 아래 [adp.integer]로 속성별로 고정한다.
+# Rust type of an `integer` without format. Possible values: "i64", "i32", "u32", "reject" (generation fails).
+# Default "i64": protocol.json defines `integer` as a JSON number of at most 32 bits (64-bit values are decimal strings),
+# but without format the signedness and width are not fixed. i64 is the smallest standard integer type that holds
+# every int32 and uint32 value without loss, so it guesses no signedness and rejects no valid value.
+# When the documentation fixes the width, add format in protocol.json or pin it per property with [adp.integer] below.
 integer_without_format = "i64"
-# 받을 때 정의에 없는 필드를 거부할지 (serde deny_unknown_fields). 기본 true: 스키마 검증 후 처리
-# (docs/10-security.md §4), 모르는 입력은 거부(fail closed).
+# Whether fields not in the definition are rejected on receipt (serde deny_unknown_fields). Default true: validate
+# against the schema before processing (docs/10-security.md §4); unknown input is rejected (fail closed).
 deny_unknown_fields = true
 
-# 커맨드의 `targetTypes`가 값을 고르는 문자열 enum 타입 ("<Domain>.<Type>"). 기본 "Target.TargetType":
-# protocol.json이 targetTypes를 그 타입의 값으로 정의한다. 커맨드가 targetTypes를 쓰는데 이 타입이 없거나
-# 문자열 enum이 아니면 오류다.
+# The string enum type whose values a command's `targetTypes` picks from ("<Domain>.<Type>"). Default "Target.TargetType":
+# protocol.json defines targetTypes as values of that type. If a command uses targetTypes and this type is missing
+# or is not a string enum, that is an error.
 target_type = "Target.TargetType"
 
-# format 없는 `integer` 속성별 고정. 키: "<Domain>.<Type>.<property>",
+# Per-property pinning of an `integer` without format. Keys: "<Domain>.<Type>.<property>",
 # "<Domain>.<command>.parameters.<name>", "<Domain>.<command>.returns.<name>",
-# "<Domain>.<event>.parameters.<name>". 값: "i64", "i32", "u32". 정의에 없는 키는 오류다.
+# "<Domain>.<event>.parameters.<name>". Values: "i64", "i32", "u32". A key not in the definition is an error.
 [adp.integer]

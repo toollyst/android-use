@@ -1,4 +1,4 @@
 [layer]
 name = "testing"
-allow = ["*"]          # 테스트 목적으로 모든 레이어 참조 가능
-# 제품 코드가 testing에 의존하는 것은 금지 (checklayers가 역방향 검사)
+allow = ["*"]          # may reference every layer for testing
+# Product code must not depend on testing (checklayers checks the reverse direction)

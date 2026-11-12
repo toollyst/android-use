@@ -161,7 +161,7 @@ pub struct Rules {
     pub layer_matches_upstream: bool,
     /// `Hook-for:` exists in the repo.
     pub hook_for_exists: bool,
-    /// `Scope-cell:` equals the 기능 cell of a table row in `docs/scope.md`.
+    /// `Scope-cell:` equals the feature cell of a table row in `docs/scope.md`.
     pub scope_cell_exists: bool,
     /// The generated patch table in each `patches/README.md` is up to date.
     pub readme: bool,

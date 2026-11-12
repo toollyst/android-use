@@ -105,7 +105,7 @@ pub fn check_entry(
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    // Documents are excluded entirely (LAYERS.toml: "검사 제외: 주석과 문서(*.md)").
+    // Documents are excluded entirely (LAYERS.toml: "Not checked: comments and documents (*.md)").
     if !is_dir && name.to_ascii_lowercase().ends_with(".md") {
         return;
     }

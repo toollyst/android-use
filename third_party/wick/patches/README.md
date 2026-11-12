@@ -7,7 +7,7 @@
 패치 헤더에서 생성한 표다 (`cargo xtask patch-readme`). 손으로 고치지 않는다.
 
 <!-- BEGIN GENERATED: patch table from the patch headers. Run `cargo xtask patch-readme`. -->
-_패치 없음._
+_No patches._
 <!-- END GENERATED: patch table -->
 
 ## 계획 (아직 패치가 아니다)

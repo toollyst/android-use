@@ -1,12 +1,14 @@
-//! instance 계약: services ↔ runtime.
+//! instance contract: services ↔ runtime.
 //!
-//! services가 보는 "Android 인스턴스 하나". 상세: `docs/03-contracts.md` instance,
+//! "One Android instance" as services see it. Details: `docs/03-contracts.md` instance,
 //! `docs/07-runtime.md`.
 //!
-//! 비동기 메서드는 `async-trait`으로 선언한다. trait object(dyn)로 쓸 수 있고, 특정 async
-//! 런타임을 가정하지 않으며, `Send` future를 돌려준다. future를 drop하면 그 호출은 취소된다.
+//! Async methods are declared with `async-trait`. They can be used as trait objects (dyn),
+//! assume no particular async runtime, and return `Send` futures. Dropping a future cancels
+//! that call.
 //!
-//! `PLACEHOLDER`로 표시한 타입은 문서가 이름만 정한 것이다. 구조와 의미는 미정이다.
+//! A type marked `PLACEHOLDER` is one only named by the documentation. Its structure and
+//! meaning are undecided.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -18,133 +20,141 @@ use droiduse_contracts_common::{EventStream, FrameId, Labels, Result};
 use droiduse_contracts_spi::SnapshotRef;
 
 // ---------------------------------------------------------------------------
-// 인스턴스
+// Instance
 // ---------------------------------------------------------------------------
 
-/// Android 인스턴스 하나.
+/// One Android instance.
 pub trait Instance: Send + Sync {
-    /// 인스턴스 ID.
+    /// Instance ID.
     fn id(&self) -> InstanceId;
-    /// 불투명 labels. 코어는 해석하지 않는다.
+    /// Opaque labels. The core does not interpret them.
     fn labels(&self) -> &Labels;
-    /// 현재 상태.
+    /// Current state.
     fn state(&self) -> InstanceState;
-    /// guest_link 클라이언트.
+    /// guest_link client.
     fn guest(&self) -> &dyn GuestChannel;
-    /// frameId가 매칭된 scanout 프레임.
+    /// Scanout frames matched to their frameId.
     fn frames(&self) -> &dyn FrameChannel;
-    /// `host/devices/input` 이벤트 주입.
+    /// Event injection into `host/devices/input`.
     fn input(&self) -> &dyn InputChannel;
-    /// `host/devices/net` 플로우 관찰·정책 적용.
+    /// Flow observation and policy enforcement for `host/devices/net`.
     fn net(&self) -> &dyn NetObserver;
-    /// 인스턴스 이벤트 스트림. 구독만 하고 기다리지 않는다. 전달은 스트림 쪽에서 일어난다.
+    /// Instance event stream. Only subscribes and does not wait. Delivery happens on the stream
+    /// side.
     fn events(&self) -> EventStream<InstanceEvent>;
 }
 
-/// 인스턴스 상태 (`docs/03-contracts.md` instance 목록 그대로).
+/// Instance state (exactly the list in `docs/03-contracts.md` instance).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InstanceState {
-    /// 생성 중.
+    /// Being created.
     Creating,
-    /// 부팅 중.
+    /// Booting.
     Booting,
-    /// 사용 가능.
+    /// Ready for use.
     Ready,
-    /// 일시정지.
+    /// Paused.
     Paused,
-    /// 스냅샷 생성 중 (`Ready`에서 들어가 끝나면 `Ready`로, `docs/07-runtime.md` §2).
+    /// Taking a snapshot (entered from `Ready`, back to `Ready` when done, `docs/07-runtime.md`
+    /// §2).
     Snapshotting,
-    /// 스냅샷에서 복원 중 (`Restore.Notify` 수신 전).
+    /// Restoring from a snapshot (before `Restore.Notify` is received).
     Restoring,
-    /// 정지.
+    /// Stopped.
     Stopped,
-    /// 실패. 수명주기 호출이 도중에 취소된 인스턴스도 여기로 온다. 자원 정리는 runtime이 맡는다.
+    /// Failed. An instance whose lifecycle call was cancelled midway also ends up here. runtime
+    /// cleans up the resources.
     Failed,
 }
 
-/// 인스턴스 ID. PLACEHOLDER: 표현 미정 (문자열은 "불투명 값"이라는 뜻일 뿐).
+/// Instance ID. PLACEHOLDER: representation undecided (the string only means "an opaque value").
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InstanceId(pub String);
 
-/// 인스턴스 이벤트. PLACEHOLDER: 값 집합 미정.
+/// Instance event. PLACEHOLDER: value set undecided.
 #[derive(Debug, Clone)]
 pub struct InstanceEvent {}
 
-/// guest_link 클라이언트.
+/// guest_link client.
 ///
-/// PLACEHOLDER: 메서드 미정. guest_link 메시지 정의(IDL·codegen, 형식 미정)를 따른다.
-/// 비동기 메서드가 생기면 `#[async_trait]`으로 선언해 `&dyn`을 유지한다.
+/// PLACEHOLDER: methods undecided. They follow the guest_link message definitions (IDL and
+/// codegen, format undecided). When async methods are added, they are declared with
+/// `#[async_trait]` so that `&dyn` keeps working.
 pub trait GuestChannel: Send + Sync {}
 
-/// `host/devices/input` 이벤트 주입. PLACEHOLDER: 메서드 미정.
+/// Event injection into `host/devices/input`. PLACEHOLDER: methods undecided.
 pub trait InputChannel: Send + Sync {}
 
-/// `host/devices/net` 플로우 관찰·정책 적용. PLACEHOLDER: 메서드 미정.
+/// Flow observation and policy enforcement for `host/devices/net`. PLACEHOLDER: methods
+/// undecided.
 pub trait NetObserver: Send + Sync {}
 
 // ---------------------------------------------------------------------------
-// 프레임
+// Frames
 // ---------------------------------------------------------------------------
 
-/// 게스트 프레임 커밋과 device scanout을 정확히 매칭한 결과. 최근 N 프레임을 보관한다.
+/// Guest frame commits matched exactly to device scanouts. Keeps the most recent N frames.
 #[async_trait]
 pub trait FrameChannel: Send + Sync {
-    /// 디스플레이의 프레임 스트림. 구독만 하고 기다리지 않는다. 전달은 스트림 쪽에서 일어난다.
+    /// Frame stream of a display. Only subscribes and does not wait. Delivery happens on the
+    /// stream side.
     fn subscribe(&self, display: u32) -> EventStream<Frame>;
-    /// 정확히 그 프레임. 아직 scanout과 매칭되지 않았으면 매칭되거나 `deadline`이 지날 때까지
-    /// 기다린다. 이미 링 버퍼에서 밀려났으면 `FrameExpired`, `deadline`이 지나면 `Timeout`.
-    /// 추측해서 다른 프레임을 주지 않는다. 읽기 호출이라 drop(취소)에 부작용이 없다.
+    /// Exactly that frame. If it is not matched to a scanout yet, waits until it is matched or
+    /// `deadline` passes. `FrameExpired` if it has already been pushed out of the ring buffer,
+    /// `Timeout` once `deadline` passes. Never guesses and returns another frame. This is a read
+    /// call, so dropping it (cancellation) has no side effects.
     async fn get(&self, id: &FrameId, deadline: Instant) -> Result<Frame>;
-    /// 디스플레이의 최신 프레임.
+    /// Latest frame of a display.
     fn latest(&self, display: u32) -> Result<Frame>;
 }
 
-/// scanout 프레임 하나.
+/// One scanout frame.
 #[derive(Debug)]
 pub struct Frame {
-    /// 매칭되지 않으면 `None` (frameId 지정 요청에는 쓰지 않는다).
+    /// `None` if not matched (not used for requests that name a frameId).
     pub frame_id: Option<FrameId>,
-    /// shm 참조 (복사 없음).
+    /// shm reference (no copy).
     pub buffer: FrameBufferRef,
 }
 
-/// 프레임 버퍼의 shm 참조 (복사 없음).
+/// shm reference to a frame buffer (no copy).
 ///
-/// PLACEHOLDER: 표현과 수명(링 버퍼 슬롯이 재사용될 때 이 참조가 어떻게 되는지) 미정.
+/// PLACEHOLDER: representation and lifetime (what happens to this reference when the ring
+/// buffer slot is reused) undecided.
 #[derive(Debug)]
 pub struct FrameBufferRef {}
 
 // ---------------------------------------------------------------------------
-// 세션
+// Sessions
 // ---------------------------------------------------------------------------
 
-/// 세션 풀.
+/// Session pool.
 ///
-/// **취소**: 비동기 메서드(수명주기 호출)가 도중에 취소되면(future drop) 대상 인스턴스는
-/// `Failed`로 끝나고 자원 정리는 runtime이 맡는다. 반쯤 된 인스턴스가 `Ready`로 보이거나
-/// 세션으로 넘겨지는 일은 없다.
+/// **Cancellation**: if an async method (a lifecycle call) is cancelled midway (future dropped),
+/// the target instance ends in `Failed` and runtime cleans up the resources. A half-done
+/// instance never shows as `Ready` and is never handed out as a session.
 #[async_trait]
 pub trait SessionManager: Send + Sync {
-    /// 스냅샷 풀에서 할당한다.
+    /// Allocates from the snapshot pool.
     async fn acquire(&self, req: SessionRequest) -> Result<Session>;
-    /// 세션을 리셋한다 (세션 쓰기 CoW 레이어 폐기, `docs/07-runtime.md` §5).
+    /// Resets the session (discards the session's write CoW layer, `docs/07-runtime.md` §5).
     async fn reset(&self, s: &Session) -> Result<()>;
-    /// 세션을 반납한다.
+    /// Returns the session.
     async fn release(&self, s: Session) -> Result<()>;
-    /// 세션의 현재 상태를 `name`으로 스냅샷한다.
+    /// Snapshots the current state of the session as `name`.
     async fn snapshot(&self, s: &Session, name: &str) -> Result<SnapshotRef>;
 }
 
-/// 세션 요청. PLACEHOLDER: 구조 미정.
+/// Session request. PLACEHOLDER: structure undecided.
 #[derive(Debug, Clone)]
 pub struct SessionRequest {}
 
-/// 할당된 세션. PLACEHOLDER: 구조 미정.
+/// An allocated session. PLACEHOLDER: structure undecided.
 #[derive(Debug)]
 pub struct Session {}
 
-/// 컴파일 전용 검사: 비동기 trait을 더미 타입으로 구현할 수 있고, `Box<dyn …>`·`&dyn …`로 쓸 수
-/// 있으며, future가 `Send`다.
+/// Compile-only check: the async traits can be implemented by dummy types, can be used as
+/// `Box<dyn …>` and `&dyn …`, and their futures are `Send`.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -181,7 +191,7 @@ mod tests {
     #[async_trait]
     impl FrameChannel for DummyFrames {
         fn subscribe(&self, _display: u32) -> EventStream<Frame> {
-            unimplemented!("컴파일 전용 더미")
+            unimplemented!("compile-only dummy")
         }
         async fn get(&self, _id: &FrameId, _deadline: Instant) -> Result<Frame> {
             Err(unimplemented_err())
@@ -191,7 +201,7 @@ mod tests {
         }
     }
 
-    /// trait object로 호출해도 모든 future가 `Send`다.
+    /// Every future is `Send` even when called through a trait object.
     fn dyn_futures_are_send(m: &dyn SessionManager, f: &dyn FrameChannel) {
         let s = Session {};
         assert_send(m.acquire(SessionRequest {}));

@@ -1,4 +1,4 @@
-# 모든 개발 장비와 CI가 같은 툴체인을 쓴다. 올릴 때는 이 파일만 바꾼다.
+# Every development machine and CI use the same toolchain. To upgrade, change only this file.
 [toolchain]
 channel = "1.98.1"
 components = ["rustfmt", "clippy"]

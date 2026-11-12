@@ -338,11 +338,11 @@ fn malformed_header_field_fails() {
         ("Subject:", "[PATCH] add boot payload hook"),
         ("Subject:", "[PATCH 1/2] droiduse: add boot payload hook"),
         ("Subject:", "[PATCH v2] droiduse: add boot payload hook"),
-        ("Subject:", "[PATCH] droiduse: <한 줄 요약>"),
+        ("Subject:", "[PATCH] droiduse: <one-line summary>"),
         ("Subject:", "[PATCH] droiduse:"),
         ("From:", ""),
         ("Purpose:", ""),
-        ("Purpose:", "<이 패치가 존재하는 이유>"),
+        ("Purpose:", "<why this patch exists>"),
         ("Hook-for:", "/abs/path"),
         ("Hook-for:", "host/../host/vmm/boot"),
         ("Hook-for:", "host\\vmm\\boot"),
@@ -355,13 +355,13 @@ fn malformed_header_field_fails() {
         ("Budget:", "forty"),
         ("Budget:", "4 lines"),
         ("Upstream:", "pending"),
-        ("Upstream:", "pending <링크>"),
+        ("Upstream:", "pending <link>"),
         ("Upstream:", "pending http://example.invalid/pr/1"),
         ("Upstream:", "pending https://"),
         ("Upstream:", "merged https://example.invalid/pr/1"),
         ("Upstream:", "N/A"),
         ("Remove-when:", ""),
-        ("Scope-cell:", "<docs/scope.md의 해당 행>"),
+        ("Scope-cell:", "<the matching row of docs/scope.md>"),
     ];
     for (field, value) in cases {
         let r = lint(&with_field(field, Some(value)));
@@ -979,7 +979,7 @@ fn readme_with(body: &str) -> String {
         "# patches\n\nHand-written intro.\n\n{}\n{}{}\n\n## Plan\nhand-written plan\n",
         patchlint::readme::BEGIN,
         if body.is_empty() {
-            "_패치 없음._\n"
+            "_No patches._\n"
         } else {
             body
         },

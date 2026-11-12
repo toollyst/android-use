@@ -60,7 +60,7 @@ fn value(c: Column, row: &Row) -> String {
 pub fn block(cfg: &Config, rows: &[Row]) -> String {
     let mut s = format!("{BEGIN}\n");
     if rows.is_empty() {
-        s.push_str("_패치 없음._\n");
+        s.push_str("_No patches._\n");
     } else {
         let cols = &cfg.readme.columns;
         let line = |cells: Vec<String>| format!("| {} |\n", cells.join(" | "));

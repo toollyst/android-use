@@ -1,16 +1,16 @@
-# LAYERS.toml: 레이어 정의와 의존 규칙 (build/checklayers가 강제)
-# 규칙:
-#  1) 상위 레벨 → 하위 레벨로만 의존 가능
-#  2) 같은 레벨의 형제 디렉터리끼리 직접 의존 금지 (contracts 경유)
-#     같은 레이어 안에서도 1단계 모듈끼리(예: host/services/screen → host/services/inspect) 직접 의존 금지.
-#     같은 1단계 모듈 안(예: inspect → inspect/proto)은 허용.
-#     예외는 레이어 루트 LAYER.toml의 [allow_siblings] 표에 단방향 간선으로만 둔다
-#     (<모듈> = ["<의존해도 되는 형제 모듈>", ...]). 양방향·순환 간선은 거부한다. 하위 LAYER.toml에는 둘 수 없다.
-#  3) contracts는 모든 레이어가 의존 가능하고, contracts 자신은 다른 레이어에 의존하지 않는다 (자기완결)
-#     외부 crate는 아래 [contracts] allow_external에 이름이 있는 crates.io crate만 허용
-#  4) 디렉터리별 세부 허용 목록은 각 디렉터리의 LAYER.toml에서 좁힐 수 있음 (넓힐 수 없음)
-#  5) clients는 contracts에만 의존한다. 어떤 제품 코드도 clients에 의존하지 않는다
-# path = 레포 루트 기준 실제 위치
+# LAYERS.toml: layer definitions and dependency rules (enforced by build/checklayers)
+# Rules:
+#  1) Dependencies go only from a higher level to a lower level
+#  2) Sibling directories on the same level must not depend on each other directly (go through contracts)
+#     Inside one layer, top-level modules (e.g. host/services/screen → host/services/inspect) must not depend on each other directly either.
+#     Inside one top-level module (e.g. inspect → inspect/proto) it is allowed.
+#     Exceptions are only one-way edges in the [allow_siblings] table of the layer-root LAYER.toml
+#     (<module> = ["<sibling module it may depend on>", ...]). Two-way and cyclic edges are rejected. They cannot be put in a nested LAYER.toml.
+#  3) Every layer may depend on contracts; contracts itself depends on no other layer (self-contained)
+#     External crates: only crates.io crates named in [contracts] allow_external below
+#  4) A directory's LAYER.toml may narrow the detailed allowlist for that directory (it cannot widen it)
+#  5) clients depends only on contracts. No product code depends on clients
+# path = actual location relative to the repo root
 
 [[layer]]
 name  = "third_party"
@@ -20,7 +20,7 @@ level = 0
 [[layer]]
 name  = "contracts"
 path  = "contracts"
-level = 1          # 특수: 모든 레이어에서 참조 가능, 자신은 의존 0
+level = 1          # special: every layer may reference it, it has no dependencies itself
 special = "contracts"
 
 [[layer]]
@@ -41,7 +41,7 @@ level = 2
 [[layer]]
 name  = "guest"
 path  = "guest"
-level = 3          # AOSP 빌드 트리로 들어감. Soong visibility로도 강제
+level = 3          # goes into the AOSP build tree. Also enforced by Soong visibility
 
 [[layer]]
 name  = "runtime"
@@ -61,34 +61,34 @@ level = 6
 [[layer]]
 name  = "clients"
 path  = "clients"
-level = 6          # entrypoints와 형제: 서로 의존 금지. ADP(contracts/adp)로만 호스트와 통신
+level = 6          # sibling of entrypoints: no dependencies between them. Talks to the host only through ADP (contracts/adp)
 special = "clients"
 
 [[layer]]
 name  = "testing"
 path  = "testing"
-level = 7          # 모든 레이어를 테스트 목적으로 참조 가능, 제품 코드가 testing에 의존 금지
+level = 7          # may reference every layer for testing; product code must not depend on testing
 
 [forbidden]
-# 개념 수준 금지 규칙 (lint로 검사)
-# 검사 대상: 식별자, 문자열 리터럴, 파일·디렉터리 이름, 의존 crate 이름
-#   대소문자 무시, 단어 접두 일치: 금지어로 "시작하는" 단어도 걸린다 (android → androidboot, tenant → tenants).
-#   단어는 _ - . 공백, camelCase, 문자/숫자 경계로 나눈다. 여러 단어 개념(package_name)은 연속한 단어로 일치하고
-#   마지막 단어만 접두 일치한다 (package_names는 걸리고 packages_name은 안 걸린다).
-#   *.patch / *.diff는 패치가 추가하는 줄(+, +++ 파일 헤더 제외)만 본다. 문맥·삭제 줄과 헤더는 보지 않는다. 파일 이름은 본다.
-# 검사 제외: 주석과 문서(*.md). 개념을 "설명"하는 것은 허용하고 코드가 그 개념을 "다루는" 것을 막는다.
-# 예: host/vmm/boot는 boot image v4 "컨테이너 포맷"만 다룬다. androidboot.* 값은 runtime이 만들어 불투명 bootconfig로 넘긴다.
+# Concept-level forbidden rules (checked by the lint)
+# Checked: identifiers, string literals, file and directory names, dependency crate names
+#   Case-insensitive, word-prefix match: words that "start with" a forbidden word are caught too (android → androidboot, tenant → tenants).
+#   Words are split at _ - . whitespace, camelCase and letter/digit boundaries. A multi-word concept (package_name) matches
+#   consecutive words, and only its last word is prefix-matched (package_names is caught, packages_name is not).
+#   For *.patch / *.diff only the lines the patch adds are checked (+, excluding the +++ file header). Context lines, removed lines and headers are not. File names are.
+# Not checked: comments and documents (*.md). "Describing" a concept is allowed; code that "handles" the concept is blocked.
+# Example: host/vmm/boot handles only the boot image v4 "container format". The androidboot.* values are built by runtime and passed on as an opaque bootconfig.
 "vmm"     = ["android", "aosp", "package_name", "activity"]
 "devices" = ["android", "aosp", "package_name", "activity"]
-"*"       = ["qemu", "tenant", "billing"]   # 코어 전체 금지어 (주석/문서 예외)
+"*"       = ["qemu", "tenant", "billing"]   # forbidden in the whole core (comments/documents excepted)
 
 [forbidden_exceptions]
-# 접두 일치의 오탐 예외 (검토 후에만 추가). 키 = 금지 개념, 값 = 허용할 단어 (정확히 일치하는 한 단어).
-# 그 개념에만 적용되고, 그 개념의 마지막 단어로 시작하면서 더 긴 단어만 올 수 있다 (개념 단어 자체는 불가).
-# 예: "activity" = ["activityx"]  → activityx만 허용, activityxy와 activity는 계속 금지
-# (현재 비어 있음)
+# Exceptions for false positives of the prefix match (added only after review). Key = forbidden concept, value = allowed words (each one exactly matching word).
+# They apply only to that concept, and may only be words longer than, and starting with, the concept's last word (not the concept word itself).
+# Example: "activity" = ["activityx"]  → only activityx is allowed; activityxy and activity stay forbidden
+# (currently empty)
 
 [contracts]
-# contracts crate가 의존해도 되는 외부(crates.io) crate. 일반·build·dev 의존 모두 해당.
-# 목록에 없거나 crates.io가 아닌 출처(git, 다른 레지스트리)면 위반. 와일드카드 없음.
+# External (crates.io) crates a contracts crate may depend on. Applies to normal, build and dev dependencies.
+# A crate not on the list, or from a source other than crates.io (git, another registry), is a violation. No wildcards.
 allow_external = ["async-trait", "base64", "bytes", "futures-core", "futures-io", "prost", "serde", "serde_json"]

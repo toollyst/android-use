@@ -1,18 +1,22 @@
-//! machine 계약: runtime ↔ vmm.
+//! machine contract: runtime ↔ vmm.
 //!
-//! VM 하나의 정의와 제어. 상세: `docs/03-contracts.md` machine.
+//! Definition and control of one VM. Details: `docs/03-contracts.md` machine.
 //!
-//! **Android 개념 없음.** 이 crate는 `host/vmm`이 쓰므로 Android 개념을 다루는 식별자·문자열을
-//! 두지 않는다 (`LAYERS.toml` `[forbidden]`). 게스트 bootconfig 값은 `host/runtime/instance`가
-//! 만들어 불투명 key=value로 넘기고, vmm은 내용을 해석하지 않는다.
+//! **No Android concepts.** `host/vmm` uses this crate, so no identifier or string that handles
+//! an Android concept goes here (`LAYERS.toml` `[forbidden]`). Guest bootconfig values are built
+//! by `host/runtime/instance` and passed on as opaque key=value pairs; vmm does not interpret
+//! them.
 //!
-//! VMM은 jail 안의 별도 프로세스다. runtime 쪽 구현은 `host/vmm/api`의 REST 클라이언트가 이 trait을
-//! 구현한다 (in-process 구현은 테스트용). 그 확장 REST API의 스키마는 이 crate에 없다 (미정).
+//! The VMM is a separate process inside a jail. On the runtime side, the REST client of
+//! `host/vmm/api` implements this trait (in-process implementations are for tests). The schema
+//! of that extension REST API is not in this crate (undecided).
 //!
-//! 비동기 메서드는 `async-trait`으로 선언한다. trait object(dyn)로 쓸 수 있고, 특정 async
-//! 런타임을 가정하지 않으며, `Send` future를 돌려준다. future를 drop하면 그 호출은 취소된다.
+//! Async methods are declared with `async-trait`. They can be used as trait objects (dyn),
+//! assume no particular async runtime, and return `Send` futures. Dropping a future cancels
+//! that call.
 //!
-//! `PLACEHOLDER`로 표시한 타입은 문서가 이름만 정한 것이다. 구조와 의미는 미정이다.
+//! A type marked `PLACEHOLDER` is one only named by the documentation. Its structure and
+//! meaning are undecided.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -22,121 +26,126 @@ use std::path::PathBuf;
 use async_trait::async_trait;
 use droiduse_contracts_common::{EventStream, Labels, Result};
 
-/// `MachineFactory::restore`가 받는 스냅샷 메타데이터와 메모리 공급원.
+/// The snapshot metadata and memory source that `MachineFactory::restore` takes.
 ///
-/// 정의는 `spi` 계약에 있다 (`SnapshotStore`, `MemorySource` SPI와 같은 타입).
+/// They are defined in the `spi` contract (the same types as the `SnapshotStore` and
+/// `MemorySource` SPIs).
 pub use droiduse_contracts_spi::{MemorySource, SnapshotMeta};
 
 // ---------------------------------------------------------------------------
-// VM 정의
+// VM definition
 // ---------------------------------------------------------------------------
 
-/// VM 하나의 정의.
+/// Definition of one VM.
 #[derive(Debug, Clone)]
 pub struct VmSpec {
-    /// vCPU 수.
+    /// Number of vCPUs.
     pub vcpus: u8,
-    /// 게스트 메모리 (MiB).
+    /// Guest memory (MiB).
     pub memory_mib: u32,
-    /// CPU 템플릿. 스냅샷 이식성을 위해 필수.
+    /// CPU template. Required for snapshot portability.
     pub cpu_template: CpuTemplateRef,
-    /// 부팅 방식.
+    /// How the VM boots.
     pub boot: BootSpec,
-    /// 디스크. GPT + CoW 레이어(base ro / snapshot / profile).
+    /// Disks. GPT + CoW layers (base ro / snapshot / profile).
     pub disks: Vec<CompositeDiskSpec>,
     /// vsock.
     pub vsock: VsockSpec,
-    /// 네트워크. vhost-user-net 백엔드 소켓.
+    /// Networks. vhost-user-net backend sockets.
     pub net: Vec<NetSpec>,
-    /// vhost-user 디바이스들. `{kind, socket, shm_regions}`.
+    /// vhost-user devices. `{kind, socket, shm_regions}`.
     pub vhost_user: Vec<VhostUserDeviceSpec>,
-    /// VMGenID 디바이스 사용 여부.
+    /// Whether the VMGenID device is used.
     pub vmgenid: bool,
-    /// 불투명 map. 코어는 해석하지 않는다.
+    /// Opaque map. The core does not interpret it.
     pub labels: Labels,
 }
 
-/// 부팅 방식.
+/// How the VM boots.
 #[derive(Debug, Clone)]
 pub enum BootSpec {
-    /// 일반 Linux 부팅.
+    /// Plain Linux boot.
     Linux {
-        /// 커널 이미지.
+        /// Kernel image.
         kernel: PathBuf,
         /// initrd.
         initrd: PathBuf,
-        /// 커널 cmdline.
+        /// Kernel cmdline.
         cmdline: String,
     },
-    /// boot image v4 + vendor_boot **컨테이너 포맷** 부팅. 이름은 포맷 이름이다.
+    /// Boot from the boot image v4 + vendor_boot **container format**. The name is the name of
+    /// the format.
     BootImageV4 {
-        /// boot 이미지.
+        /// boot image.
         boot: PathBuf,
-        /// vendor_boot 이미지.
+        /// vendor_boot image.
         vendor_boot: PathBuf,
-        /// bootconfig. 불투명 key=value 목록. vmm은 내용을 해석하지 않는다.
-        /// 순서·중복 키·값 이스케이프 규칙은 미정이다.
+        /// bootconfig. An opaque list of key=value pairs. vmm does not interpret it.
+        /// Rules for order, duplicate keys and value escaping are undecided.
         bootconfig: Vec<(String, String)>,
     },
 }
 
-/// CPU 템플릿 참조 (게스트에 보이는 CPU 기능 고정).
+/// Reference to a CPU template (pins the CPU features the guest sees).
 ///
-/// PLACEHOLDER: 표현 미정 (문자열은 "불투명 값"이라는 뜻일 뿐).
+/// PLACEHOLDER: representation undecided (the string only means "an opaque value").
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CpuTemplateRef(pub String);
 
-/// GPT 컴포지트 디스크 + CoW 레이어(base ro / snapshot / profile).
+/// GPT composite disk + CoW layers (base ro / snapshot / profile).
 ///
-/// PLACEHOLDER: 구조 미정. 이름 있는 파티션 구성은 `docs/05-vmm-and-devices.md` §3 `host/vmm/disk`.
+/// PLACEHOLDER: structure undecided. The named partition layout is in
+/// `docs/05-vmm-and-devices.md` §3 `host/vmm/disk`.
 #[derive(Debug, Clone)]
 pub struct CompositeDiskSpec {}
 
-/// vsock 설정. PLACEHOLDER: 구조 미정.
+/// vsock settings. PLACEHOLDER: structure undecided.
 #[derive(Debug, Clone)]
 pub struct VsockSpec {}
 
-/// 네트워크 하나 (vhost-user-net 백엔드 소켓). PLACEHOLDER: 구조 미정.
+/// One network (vhost-user-net backend socket). PLACEHOLDER: structure undecided.
 #[derive(Debug, Clone)]
 pub struct NetSpec {}
 
-/// vhost-user 디바이스 하나. 문서: `{kind, socket, shm_regions}`.
+/// One vhost-user device. Documentation: `{kind, socket, shm_regions}`.
 #[derive(Debug, Clone)]
 pub struct VhostUserDeviceSpec {
-    /// 디바이스 종류.
+    /// Device kind.
     pub kind: VhostUserDeviceKind,
-    /// vhost-user 백엔드의 unix socket 경로.
+    /// Unix socket path of the vhost-user backend.
     pub socket: PathBuf,
-    /// virtio shared memory region들 (gfxstream blob resource 등).
+    /// virtio shared memory regions (gfxstream blob resources, etc.).
     pub shm_regions: Vec<ShmRegionSpec>,
 }
 
-/// vhost-user 디바이스 종류.
+/// vhost-user device kind.
 ///
-/// PLACEHOLDER: 문서에 필드 이름(`kind`)만 있다. 값 집합·표현 미정.
+/// PLACEHOLDER: the documentation has only the field name (`kind`). The value set and
+/// representation are undecided.
 #[derive(Debug, Clone)]
 pub struct VhostUserDeviceKind {}
 
-/// virtio shared memory region 하나.
+/// One virtio shared memory region.
 ///
-/// PLACEHOLDER: 문서에 필드 이름(`shm_regions`)만 있다. 구조 미정.
+/// PLACEHOLDER: the documentation has only the field name (`shm_regions`). Structure undecided.
 #[derive(Debug, Clone)]
 pub struct ShmRegionSpec {}
 
 // ---------------------------------------------------------------------------
-// 제어
+// Control
 // ---------------------------------------------------------------------------
 
-/// VM 생성 경로. `Machine`과 분리해 둘 다 trait object(dyn)로 쓸 수 있게 한다.
+/// The VM creation path. Kept apart from `Machine` so that both can be used as trait objects
+/// (dyn).
 ///
-/// **취소**: `create`·`restore`가 도중에 취소되면(future drop) 만들던 VM은 실패한 것이다.
-/// 호출자에게 VM이 돌아가지 않고, 반쯤 만든 VMM 프로세스와 자원의 정리는 runtime이 맡는다.
-/// 그 인스턴스는 `Failed`로 끝난다 (instance 계약).
+/// **Cancellation**: if `create` or `restore` is cancelled midway (future dropped), the VM being
+/// built has failed. No VM is returned to the caller, and runtime cleans up the half-built VMM
+/// process and its resources. That instance ends in `Failed` (instance contract).
 #[async_trait]
 pub trait MachineFactory: Send + Sync {
-    /// 새 VM을 만든다.
+    /// Creates a new VM.
     async fn create(&self, spec: VmSpec) -> Result<Box<dyn Machine>>;
-    /// 스냅샷에서 VM을 복원한다.
+    /// Restores a VM from a snapshot.
     async fn restore(
         &self,
         spec: VmSpec,
@@ -145,40 +154,40 @@ pub trait MachineFactory: Send + Sync {
     ) -> Result<Box<dyn Machine>>;
 }
 
-/// VM 하나의 제어.
+/// Control of one VM.
 ///
-/// **취소**: 비동기 메서드(수명주기 호출)가 도중에 취소되면(future drop) 이 VM은 실패한 것이다.
-/// 다시 시작·재개하지 않고 실행 중으로 보고하지 않으며, 정리는 runtime이 맡는다.
-/// 그 인스턴스는 `Failed`로 끝나고 반쯤 된 VM이 `Ready`로 보이는 일은 없다 (instance 계약).
-/// `events`는 구독만 하므로 drop에 부작용이 없다.
+/// **Cancellation**: if an async method (a lifecycle call) is cancelled midway (future dropped),
+/// this VM has failed. It is not started or resumed again and not reported as running, and
+/// runtime cleans it up. That instance ends in `Failed`, and a half-done VM never shows as
+/// `Ready` (instance contract). `events` only subscribes, so dropping it has no side effects.
 #[async_trait]
 pub trait Machine: Send + Sync {
-    /// 시작한다.
+    /// Starts the VM.
     async fn start(&self) -> Result<()>;
-    /// 일시정지한다.
+    /// Pauses the VM.
     async fn pause(&self) -> Result<()>;
-    /// 재개한다.
+    /// Resumes the VM.
     async fn resume(&self) -> Result<()>;
-    /// 스냅샷을 `out`으로 쓴다.
+    /// Writes a snapshot to `out`.
     async fn snapshot(&self, out: SnapshotSink) -> Result<SnapshotMeta>;
-    /// VMGenID를 갱신한다.
+    /// Updates the VMGenID.
     async fn bump_generation(&self) -> Result<()>;
-    /// VM을 없앤다.
+    /// Destroys the VM.
     async fn destroy(self: Box<Self>) -> Result<()>;
-    /// VM 이벤트 스트림. 구독만 하고 기다리지 않는다. 전달은 스트림 쪽에서 일어난다.
+    /// VM event stream. Only subscribes and does not wait. Delivery happens on the stream side.
     fn events(&self) -> EventStream<VmEvent>;
 }
 
-/// 스냅샷 출력 대상. PLACEHOLDER: 구조 미정.
+/// Snapshot output target. PLACEHOLDER: structure undecided.
 #[derive(Debug)]
 pub struct SnapshotSink {}
 
-/// VM 이벤트. PLACEHOLDER: 값 집합 미정.
+/// VM event. PLACEHOLDER: value set undecided.
 #[derive(Debug, Clone)]
 pub struct VmEvent {}
 
-/// 컴파일 전용 검사: 비동기 trait을 더미 타입으로 구현할 수 있고, `Box<dyn …>`·`&dyn …`로 쓸 수
-/// 있으며, future가 `Send`다.
+/// Compile-only check: the async traits can be implemented by dummy types, can be used as
+/// `Box<dyn …>` and `&dyn …`, and their futures are `Send`.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,7 +257,7 @@ mod tests {
             Err(unimplemented_err())
         }
         fn events(&self) -> EventStream<VmEvent> {
-            unimplemented!("컴파일 전용 더미")
+            unimplemented!("compile-only dummy")
         }
     }
 
@@ -268,7 +277,7 @@ mod tests {
         }
     }
 
-    /// trait object로 호출해도 모든 future가 `Send`다.
+    /// Every future is `Send` even when called through a trait object.
     fn dyn_futures_are_send(f: &dyn MachineFactory, m: Box<dyn Machine>) {
         assert_send(f.create(spec()));
         assert_send(f.restore(spec(), SnapshotMeta {}, Box::new(DummyMemory)));

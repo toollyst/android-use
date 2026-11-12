@@ -1,12 +1,12 @@
-# 버전은 contracts/guest_link/VERSION 과 같아야 한다 (단일 원천: VERSION).
-# 패키지 필드는 workspace 상속(`*.workspace = true`)을 쓰지 않는다.
-# 외부 의존의 버전은 루트 Cargo.toml `[workspace.dependencies]`가 단일 원천이다.
+# The version must equal contracts/guest_link/VERSION (single source: VERSION).
+# Package fields do not use workspace inheritance (`*.workspace = true`).
+# The root Cargo.toml `[workspace.dependencies]` is the single source of external dependency versions.
 [package]
 name = "droiduse-contracts-guest-link"
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
-description = "guest_link 계약: 호스트 ↔ 게스트 vsock 프로토콜 (Protocol Buffers)"
+description = "guest_link contract: host ↔ guest vsock protocol (Protocol Buffers)"
 publish = false
 
 [lib]
