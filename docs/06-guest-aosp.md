@@ -61,7 +61,7 @@ vendor/droiduse/
 2. first-stage init이 ramdisk의 fstab으로 `super`의 logical 파티션을 dm-linear로 마운트 (`host/vmm/disk`의 GPT 이름 → `/dev/block/by-name`)
 3. AVB: 자체 키로 vbmeta 체인 검증, rollback index
 4. second-stage init → vendor 모듈 로드(virtio-blk/net/vsock/gpu/input/snd/pci, vmgenid)
-5. `adpd`, `agent`, `restore` 시작 → `guest_link` Hello
+5. `adpd`, `agent`, `restore` 시작 → 게스트가 호스트로 `guest_link` vsock 연결을 연다(게스트는 listening 포트를 열지 않는다) → Hello
 
 ## 6. 타깃
 | product | 호스트 | 비고 |

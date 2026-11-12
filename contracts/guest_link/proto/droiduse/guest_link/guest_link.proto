@@ -24,7 +24,12 @@
 // 이 파일에는 문서와 오너 결정이 형태까지 정한 것만 있다. 이름만 정해진 필드·메시지·RPC는 넣지 않았고
 // "OPEN:" 주석으로 남겼다. 필드 번호는 추가만 하고 재사용하지 않는다.
 //
-// OPEN: 연결 구성 (vsock 포트 두 개에 gRPC 채널 두 개 / 연결 하나에 역방향 스트림).
+// 연결: 게스트가 vsock 연결 하나를 연다. 게스트는 listening 포트를 열지 않는다. 호스트 → 게스트 호출
+// ("구현: 게스트" 서비스)도 이 연결로 가며, 그 호출마다 자기 gRPC 상태, deadline, 취소, 메타데이터
+// (세션 토큰, traceparent)를 가진다. 크기 제한 설정도 두 방향 호출에 똑같이 적용한다.
+//
+// OPEN: 호스트 → 게스트 호출을 이 연결에 싣는 방식 (역방향 터널 프로토콜). 정해지기 전까지 이 파일에는
+//       그 방식의 메시지가 없다.
 // OPEN: 세션 토큰을 게스트에 처음 전달하는 방식.
 // OPEN: Inspect.Snapshot(TreeSnapshot), Inspect.Diff(TreeDiff), Inspect.Node의 결과 Node, Frame.Committed,
 //       Action.Perform, App.*, App.Lifecycle, Log.Stream, WebView.Attach의 CDP 프록시 스트림,
