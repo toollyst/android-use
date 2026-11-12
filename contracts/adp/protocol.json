@@ -11,7 +11,8 @@
     { "name": "UNSUPPORTED_VERSION", "description": "No protocol version both sides support." },
     { "name": "INVALID_REQUEST", "description": "The envelope is malformed: not a Request object, an id that is not an integer in range or duplicates an in-flight request, a sessionId missing on a session-scoped or present on a connection-scoped method, a sessionId this connection does not hold, a command in the session of a target type it does not accept (targetTypes), or a message the connection state does not allow: a command before Connection.hello, a second Connection.hello, Connection.auth on an authenticated connection, a second App.uploadChunk in flight for one upload, App.createUpload beyond the per-session upload limit (before authentication: UNAUTHENTICATED)." },
     { "name": "METHOD_NOT_FOUND", "description": "The method names no command of this protocol version." },
-    { "name": "INVALID_PARAMS", "description": "The params do not follow the definition: a missing required value, a wrong type, an unknown enum value, an unknown union kind, a selector syntax error or unknown selector engine, an unknown diff format." }
+    { "name": "INVALID_PARAMS", "description": "The params do not follow the definition: a missing required value, a wrong type, an unknown enum value, an unknown union kind, a selector syntax error or unknown selector engine, an unknown diff format." },
+    { "name": "UNIMPLEMENTED", "description": "The command exists in this protocol version, but this server, or the layer that answers it, has not built it yet. Not METHOD_NOT_FOUND, which means the protocol version has no such command." }
   ],
   "envelope": {
     "description": "WebSocket text messages carry one JSON object each: Request (client to server), Response (server to client, one per Request), Event (server to client). Binary messages: see binary. A message above the maximum message size (a server setting) closes the connection with status 1009 (RFC 6455 section 7.4.1). The server sends a Ping (RFC 6455 section 5.5.2) at the keepalive interval (a server setting) and closes the connection (RFC 6455 section 7.1.1) when the number of unanswered Pings the keepalive setting allows is exceeded.",
@@ -578,7 +579,7 @@
           "targetTypes": ["display"],
           "parameters": [
             { "name": "type", "type": "string", "enum": ["ACTION_DOWN", "ACTION_UP"] },
-            { "name": "keyCode", "description": "The name of an android.view.KeyEvent KEYCODE_* constant, for example KEYCODE_ENTER. A name the server's Android release does not define: INVALID_PARAMS. A defined name that the guest's key layout (the stock AOSP Generic.kl) cannot produce cannot be injected and is answered with an error.", "type": "string" },
+            { "name": "keyCode", "description": "The name of an android.view.KeyEvent KEYCODE_* constant, for example KEYCODE_ENTER. A name the server's Android release does not define: INVALID_PARAMS. A defined name that the guest's key layout (the stock AOSP Generic.kl) cannot produce cannot be injected: INVALID_PARAMS.", "type": "string" },
             { "name": "resolveOn", "description": "Default: frameCommitted.", "optional": true, "$ref": "ResolveOn" },
             { "name": "timeoutMs", "description": "Bound on the wait for resolveOn frameCommitted and idle. Default: a server setting.", "optional": true, "type": "integer", "format": "uint32" }
           ],

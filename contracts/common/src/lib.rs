@@ -60,6 +60,10 @@ pub enum ErrorCode {
     /// value mismatch, an unknown union `kind`, a selector syntax error or unknown selector
     /// engine, an unknown diff format. (`INVALID_PARAMS`)
     InvalidParams,
+    /// The command exists in this protocol version, but this server, or the layer that answers
+    /// it, has not built it yet. Not `MethodNotFound`, which means the protocol version has no
+    /// such command. (`UNIMPLEMENTED`)
+    Unimplemented,
 }
 
 /// The error the contract traits return.
