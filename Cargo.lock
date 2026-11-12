@@ -124,6 +124,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "droiduse-contracts-adp"
+version = "0.1.0"
+
+[[package]]
 name = "droiduse-contracts-common"
 version = "0.1.0"
 dependencies = [
@@ -132,6 +136,10 @@ dependencies = [
 
 [[package]]
 name = "droiduse-contracts-device"
+version = "0.1.0"
+
+[[package]]
+name = "droiduse-contracts-guest-link"
 version = "0.1.0"
 
 [[package]]
@@ -144,6 +152,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "droiduse-contracts-keymint"
+version = "0.1.0"
+
+[[package]]
 name = "droiduse-contracts-machine"
 version = "0.1.0"
 dependencies = [
@@ -152,6 +164,10 @@ dependencies = [
  "droiduse-contracts-common",
  "droiduse-contracts-spi",
 ]
+
+[[package]]
+name = "droiduse-contracts-node"
+version = "0.1.0"
 
 [[package]]
 name = "droiduse-contracts-spi"

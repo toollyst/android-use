@@ -1,0 +1,103 @@
+{
+  "description": "ADP: Android DevTools Protocol (docs/04-adp.md). CDP-style domains, commands, events, types. The version is contracts/adp/VERSION. Only shapes the docs fully define are listed; see contracts/adp/src/lib.rs.",
+  "errors": [
+    { "name": "FRAME_EXPIRED", "description": "The requested frameId is no longer in the ring buffer. No other frame is substituted." },
+    { "name": "NODE_GONE", "description": "The target node is gone." },
+    { "name": "TARGET_GONE", "description": "The target is gone." },
+    { "name": "NOT_ACTIONABLE", "description": "The action cannot be performed on the target." },
+    { "name": "TIMEOUT", "description": "Timed out." },
+    { "name": "POLICY_DENIED", "description": "Denied by policy." },
+    { "name": "UNAUTHENTICATED", "description": "Not authenticated." },
+    { "name": "UNSUPPORTED_VERSION", "description": "No protocol version both sides support." }
+  ],
+  "domains": [
+    { "domain": "Target" },
+    {
+      "domain": "UI",
+      "types": [
+        {
+          "id": "NodeId",
+          "description": "Opaque node ID. Stable for the node's lifetime and never reused.",
+          "type": "string"
+        },
+        {
+          "id": "FrameId",
+          "description": "The frame that trees, screenshots and events refer to.",
+          "type": "object",
+          "properties": [
+            { "name": "display", "description": "Display number.", "type": "integer", "format": "uint32" },
+            { "name": "vsyncId", "description": "Choreographer vsync ID (app side).", "type": "integer", "format": "int64" },
+            { "name": "sfFrame", "description": "SurfaceFlinger frame number (composition side).", "type": "integer", "format": "uint64" }
+          ]
+        },
+        {
+          "id": "Rect",
+          "description": "Rectangle in display physical pixels, screen coordinates.",
+          "type": "object",
+          "properties": [
+            { "name": "x", "type": "number" },
+            { "name": "y", "type": "number" },
+            { "name": "w", "type": "number" },
+            { "name": "h", "type": "number" }
+          ]
+        },
+        {
+          "id": "Node",
+          "description": "A node of the unified tree.",
+          "type": "object",
+          "properties": [
+            { "name": "id", "$ref": "NodeId" },
+            { "name": "source", "type": "string", "enum": ["view", "a11y", "compose", "webview", "layer"] },
+            { "name": "windowId", "type": "string" },
+            { "name": "package", "optional": true, "type": "string" },
+            { "name": "className", "optional": true, "type": "string" },
+            { "name": "resourceId", "optional": true, "type": "string" },
+            { "name": "role", "optional": true, "type": "string" },
+            { "name": "text", "optional": true, "type": "string" },
+            { "name": "contentDescription", "optional": true, "type": "string" },
+            { "name": "hint", "optional": true, "type": "string" },
+            { "name": "bounds", "description": "Screen pixels.", "$ref": "Rect" },
+            { "name": "visible", "type": "boolean" },
+            { "name": "alpha", "optional": true, "type": "number" },
+            { "name": "z", "optional": true, "type": "number" },
+            { "name": "enabled", "optional": true, "type": "boolean" },
+            { "name": "focused", "optional": true, "type": "boolean" },
+            { "name": "selected", "optional": true, "type": "boolean" },
+            { "name": "checked", "optional": true, "type": "boolean" },
+            { "name": "clickable", "optional": true, "type": "boolean" },
+            { "name": "longClickable", "optional": true, "type": "boolean" },
+            { "name": "scrollable", "optional": true, "type": "boolean" },
+            { "name": "editable", "optional": true, "type": "boolean" },
+            { "name": "actions", "description": "Actions that can be performed.", "optional": true, "type": "array", "items": { "type": "string" } },
+            { "name": "webviewTargetId", "description": "CDP target reference when the node is a WebView.", "optional": true, "type": "string" },
+            { "name": "children", "optional": true, "type": "array", "items": { "$ref": "Node" } }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "name": "getTree",
+          "description": "Returns the unified tree for one frame.",
+          "parameters": [
+            { "name": "sources", "type": "array", "items": { "type": "string", "enum": ["view", "a11y", "compose", "webview", "layer"] } },
+            { "name": "depth", "type": "integer" },
+            { "name": "windowId", "optional": true, "type": "string" }
+          ],
+          "returns": [
+            { "name": "frameId", "$ref": "FrameId" },
+            { "name": "root", "$ref": "Node" }
+          ]
+        }
+      ]
+    },
+    { "domain": "Accessibility" },
+    { "domain": "Input" },
+    { "domain": "Screen" },
+    { "domain": "App" },
+    { "domain": "Network" },
+    { "domain": "Log" },
+    { "domain": "Overlay" },
+    { "domain": "WebView" },
+    { "domain": "Session" }
+  ]
+}
