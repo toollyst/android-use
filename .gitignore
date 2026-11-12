@@ -27,3 +27,9 @@ Thumbs.db
 /testing/perf/results/
 /testing/fuzz/artifacts/
 /testing/fuzz/corpus/
+
+# Claude Code: .claude/ 는 커밋한다(settings.json, skills, agents, commands, rules).
+# 개인·기기 전용 파일과 에이전트 작업 트리만 제외한다.
+.claude/worktrees/
+.claude/settings.local.json
+CLAUDE.local.md
