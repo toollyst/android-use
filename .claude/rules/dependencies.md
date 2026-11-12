@@ -1,4 +1,4 @@
-# 외부 의존
+# External dependencies
 
-- 계약 크레이트의 외부 크레이트 의존은 허용 목록으로 관리한다. 필요한 크레이트가 생기면 사용자에게 요청해 목록에 올린다.
-- 검증된 크레이트가 있으면 직접 다시 만들지 않는다. 다만 목적에 맞지 않으면 그대로 쓰지 말고 사용자와 상의한다.
+- External crate dependencies of the contract crates are managed with an allowlist. Adding a crate that is needed to the list needs maintainer approval.
+- When a proven crate exists, do not rebuild it yourself. If it does not fit the purpose, do not use it as is; discuss it with the maintainers.
