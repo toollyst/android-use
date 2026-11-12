@@ -40,6 +40,11 @@ license = "Apache-2.0"
 publish = false
 
 [workspace.dependencies]
+# contracts 허용 목록의 외부 crate (오너 결정). 버전은 여기 한 곳에서만 정한다.
+async-trait = "0.1.92"
+bytes = { version = "1.12.1", default-features = false }
+futures-core = { version = "0.3.34", default-features = false, features = ["alloc"] }
+futures-io = "0.3.34"
 ignore = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

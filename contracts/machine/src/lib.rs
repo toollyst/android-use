@@ -9,6 +9,9 @@
 //! VMM은 jail 안의 별도 프로세스다. runtime 쪽 구현은 `host/vmm/api`의 REST 클라이언트가 이 trait을
 //! 구현한다 (in-process 구현은 테스트용). 그 확장 REST API의 스키마는 이 crate에 없다 (미정).
 //!
+//! 비동기 메서드는 `async-trait`으로 선언한다. trait object(dyn)로 쓸 수 있고, 특정 async
+//! 런타임을 가정하지 않으며, `Send` future를 돌려준다. future를 drop하면 그 호출은 취소된다.
+//!
 //! `PLACEHOLDER`로 표시한 타입은 문서가 이름만 정한 것이다. 구조와 의미는 미정이다.
 
 #![forbid(unsafe_code)]
@@ -16,6 +19,7 @@
 
 use std::path::PathBuf;
 
+use async_trait::async_trait;
 use droiduse_contracts_common::{EventStream, Labels, Result};
 
 /// `MachineFactory::restore`가 받는 스냅샷 메타데이터와 메모리 공급원.
@@ -124,11 +128,12 @@ pub struct ShmRegionSpec {}
 // ---------------------------------------------------------------------------
 
 /// VM 생성 경로. `Machine`과 분리해 둘 다 trait object(dyn)로 쓸 수 있게 한다.
-pub trait MachineFactory {
+#[async_trait]
+pub trait MachineFactory: Send + Sync {
     /// 새 VM을 만든다.
-    fn create(&self, spec: VmSpec) -> Result<Box<dyn Machine>>;
+    async fn create(&self, spec: VmSpec) -> Result<Box<dyn Machine>>;
     /// 스냅샷에서 VM을 복원한다.
-    fn restore(
+    async fn restore(
         &self,
         spec: VmSpec,
         meta: SnapshotMeta,
@@ -137,20 +142,21 @@ pub trait MachineFactory {
 }
 
 /// VM 하나의 제어.
-pub trait Machine {
+#[async_trait]
+pub trait Machine: Send + Sync {
     /// 시작한다.
-    fn start(&self) -> Result<()>;
+    async fn start(&self) -> Result<()>;
     /// 일시정지한다.
-    fn pause(&self) -> Result<()>;
+    async fn pause(&self) -> Result<()>;
     /// 재개한다.
-    fn resume(&self) -> Result<()>;
+    async fn resume(&self) -> Result<()>;
     /// 스냅샷을 `out`으로 쓴다.
-    fn snapshot(&self, out: SnapshotSink) -> Result<SnapshotMeta>;
+    async fn snapshot(&self, out: SnapshotSink) -> Result<SnapshotMeta>;
     /// VMGenID를 갱신한다.
-    fn bump_generation(&self) -> Result<()>;
+    async fn bump_generation(&self) -> Result<()>;
     /// VM을 없앤다.
-    fn destroy(self: Box<Self>) -> Result<()>;
-    /// VM 이벤트 스트림.
+    async fn destroy(self: Box<Self>) -> Result<()>;
+    /// VM 이벤트 스트림. 구독만 하고 기다리지 않는다. 전달은 스트림 쪽에서 일어난다.
     fn events(&self) -> EventStream<VmEvent>;
 }
 
@@ -161,3 +167,115 @@ pub struct SnapshotSink {}
 /// VM 이벤트. PLACEHOLDER: 값 집합 미정.
 #[derive(Debug, Clone)]
 pub struct VmEvent {}
+
+/// 컴파일 전용 검사: 비동기 trait을 더미 타입으로 구현할 수 있고, `Box<dyn …>`·`&dyn …`로 쓸 수
+/// 있으며, future가 `Send`다.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::Bytes;
+    use droiduse_contracts_common::Error;
+
+    fn assert_send<T: Send>(_: T) {}
+    fn assert_send_sync<T: Send + Sync + ?Sized>() {}
+
+    fn spec() -> VmSpec {
+        VmSpec {
+            vcpus: 1,
+            memory_mib: 1,
+            cpu_template: CpuTemplateRef(String::new()),
+            boot: BootSpec::Linux {
+                kernel: PathBuf::new(),
+                initrd: PathBuf::new(),
+                cmdline: String::new(),
+            },
+            disks: Vec::new(),
+            vsock: VsockSpec {},
+            net: Vec::new(),
+            vhost_user: Vec::new(),
+            vmgenid: false,
+            labels: Labels::default(),
+        }
+    }
+
+    fn unimplemented_err() -> Error {
+        Error {
+            code: None,
+            message: String::new(),
+        }
+    }
+
+    struct DummyMemory;
+    #[async_trait]
+    impl MemorySource for DummyMemory {
+        fn len(&self) -> u64 {
+            0
+        }
+        async fn read_at(&self, _offset: u64, _len: usize) -> Result<Bytes> {
+            Err(unimplemented_err())
+        }
+        async fn prefetch(&self, _ranges: &[std::ops::Range<u64>]) {}
+    }
+
+    struct DummyMachine;
+    #[async_trait]
+    impl Machine for DummyMachine {
+        async fn start(&self) -> Result<()> {
+            Err(unimplemented_err())
+        }
+        async fn pause(&self) -> Result<()> {
+            Err(unimplemented_err())
+        }
+        async fn resume(&self) -> Result<()> {
+            Err(unimplemented_err())
+        }
+        async fn snapshot(&self, _out: SnapshotSink) -> Result<SnapshotMeta> {
+            Err(unimplemented_err())
+        }
+        async fn bump_generation(&self) -> Result<()> {
+            Err(unimplemented_err())
+        }
+        async fn destroy(self: Box<Self>) -> Result<()> {
+            Err(unimplemented_err())
+        }
+        fn events(&self) -> EventStream<VmEvent> {
+            unimplemented!("컴파일 전용 더미")
+        }
+    }
+
+    struct DummyFactory;
+    #[async_trait]
+    impl MachineFactory for DummyFactory {
+        async fn create(&self, _spec: VmSpec) -> Result<Box<dyn Machine>> {
+            Ok(Box::new(DummyMachine))
+        }
+        async fn restore(
+            &self,
+            _spec: VmSpec,
+            _meta: SnapshotMeta,
+            _mem: Box<dyn MemorySource>,
+        ) -> Result<Box<dyn Machine>> {
+            Ok(Box::new(DummyMachine))
+        }
+    }
+
+    /// trait object로 호출해도 모든 future가 `Send`다.
+    fn dyn_futures_are_send(f: &dyn MachineFactory, m: Box<dyn Machine>) {
+        assert_send(f.create(spec()));
+        assert_send(f.restore(spec(), SnapshotMeta {}, Box::new(DummyMemory)));
+        assert_send(m.start());
+        assert_send(m.pause());
+        assert_send(m.resume());
+        assert_send(m.snapshot(SnapshotSink {}));
+        assert_send(m.bump_generation());
+        assert_send(m.destroy());
+    }
+
+    #[test]
+    fn dummy_implements_contract_as_dyn() {
+        assert_send_sync::<dyn MachineFactory>();
+        assert_send_sync::<dyn Machine>();
+        let f: Box<dyn MachineFactory> = Box::new(DummyFactory);
+        dyn_futures_are_send(f.as_ref(), Box::new(DummyMachine));
+    }
+}
