@@ -10,14 +10,29 @@ description = "MCP server over stdio: ADP instance tools for LLM clients"
 name = "droiduse-mcp"
 path = "src/main.rs"
 
+[features]
+# DEBUG ONLY (CLAUDE.md §1.2): the adb tools debug_screenshot and debug_tap (src/debug.rs).
+# Off by default; a default build does not compile them.
+debug = ["dep:base64", "tokio/process", "tokio/time"]
+
 [dependencies]
 droiduse-sdk = { path = "../sdk/rust" }
 rmcp = { workspace = true, features = ["macros", "server", "transport-io"] }
 serde = { workspace = true }
 serde_json.workspace = true
 tokio = { workspace = true, features = ["io-std", "macros", "rt-multi-thread"] }
+base64 = { workspace = true, optional = true }
 
 [dev-dependencies]
+base64.workspace = true
 droiduse-sdk = { path = "../sdk/rust", features = ["test-support"] }
 rmcp = { workspace = true, features = ["client", "transport-child-process"] }
 tempfile.workspace = true
+
+# The debug tools against a fake adb (this test binary plays adb when FAKE_ADB_LOG is set):
+# cargo test -p droiduse-mcp --features debug
+[[test]]
+name = "debug_tools"
+path = "tests/debug_tools.rs"
+harness = false
+required-features = ["debug"]

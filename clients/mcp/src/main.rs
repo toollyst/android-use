@@ -11,6 +11,13 @@
 //! starts a trace: a new W3C traceparent goes with every request, and its trace id is logged
 //! to stderr (stdout carries MCP only). An ADP error becomes a tool error result with the
 //! code, the message and the reason.
+//!
+//! A build with the cargo feature `debug` adds the debug-only adb tools (`debug.rs`) and their
+//! settings, and then starts without an ADP endpoint: the instance tools answer "ADP endpoint
+//! not configured" instead. A default build has neither.
+
+#[cfg(feature = "debug")]
+mod debug;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -31,13 +38,18 @@ const USAGE: &str = "usage: droiduse-mcp --adp-url <ws://127.0.0.1:port> --token
 
 #[derive(Debug, Clone)]
 struct Settings {
-    adp_url: String,
-    token_file: PathBuf,
+    /// The ADP server and the token file. Always set in a default build; a debug build may
+    /// run without them (the instance tools then fail).
+    adp: Option<(String, PathBuf)>,
+    #[cfg(feature = "debug")]
+    adb: debug::AdbSettings,
 }
 
 fn settings() -> Result<Settings, String> {
     let mut url = std::env::var("DROIDUSE_ADP_URL").ok();
     let mut token = std::env::var_os("DROIDUSE_ADP_TOKEN_FILE").map(PathBuf::from);
+    #[cfg(feature = "debug")]
+    let mut adb = debug::AdbSettings::from_env()?;
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -47,12 +59,27 @@ fn settings() -> Result<Settings, String> {
                     it.next().ok_or("--token-file needs a value")?,
                 ));
             }
-            other => return Err(format!("unknown argument `{other}`")),
+            other => {
+                #[cfg(feature = "debug")]
+                if adb.flag(other, &mut it)? {
+                    continue;
+                }
+                return Err(format!("unknown argument `{other}`"));
+            }
         }
     }
+    let adp = match (url, token) {
+        (Some(url), Some(token)) => Some((url, token)),
+        _ if cfg!(feature = "debug") => None,
+        (None, _) => return Err("no ADP URL (--adp-url or DROIDUSE_ADP_URL)".to_owned()),
+        (_, None) => {
+            return Err("no token file (--token-file or DROIDUSE_ADP_TOKEN_FILE)".to_owned());
+        }
+    };
     Ok(Settings {
-        adp_url: url.ok_or("no ADP URL (--adp-url or DROIDUSE_ADP_URL)")?,
-        token_file: token.ok_or("no token file (--token-file or DROIDUSE_ADP_TOKEN_FILE)")?,
+        adp,
+        #[cfg(feature = "debug")]
+        adb,
     })
 }
 
@@ -75,7 +102,10 @@ impl Tools {
     fn new(settings: Settings) -> Self {
         Self {
             settings,
+            #[cfg(not(feature = "debug"))]
             tool_router: Self::tool_router(),
+            #[cfg(feature = "debug")]
+            tool_router: Self::tool_router() + Self::debug_router(),
         }
     }
 
@@ -106,6 +136,11 @@ impl Tools {
 impl Tools {
     /// One tool call: a new trace, one ADP connection, one command.
     async fn run<C: Command>(&self, tool: &str, params: C) -> CallToolResult {
+        let Some((adp_url, token_file)) = &self.settings.adp else {
+            return CallToolResult::structured_error(json!({
+                "message": "ADP endpoint not configured: start droiduse-mcp with --adp-url and --token-file",
+            }));
+        };
         let tp = match new_traceparent() {
             Ok(tp) => tp,
             Err(e) => return failure(&e),
@@ -116,8 +151,8 @@ impl Tools {
             C::METHOD
         );
         let result = async {
-            let token = read_token_file(&self.settings.token_file)?;
-            let client = Client::connect(&self.settings.adp_url, &token, Some(tp)).await?;
+            let token = read_token_file(token_file)?;
+            let client = Client::connect(adp_url, &token, Some(tp)).await?;
             let result = client.call_traced(params, Some(tp)).await;
             let _ = client.close().await;
             result
@@ -160,9 +195,16 @@ async fn main() -> ExitCode {
         Ok(s) => s,
         Err(e) => {
             eprintln!("droiduse-mcp: {e}\n{USAGE}");
+            #[cfg(feature = "debug")]
+            eprintln!("{}", debug::USAGE);
             return ExitCode::from(2);
         }
     };
+    #[cfg(feature = "debug")]
+    eprintln!(
+        "droiduse-mcp: WARNING: debug build: debug_screenshot and debug_tap control a device \
+         through adb; not for production"
+    );
     let service = match Tools::new(settings).serve(rmcp::transport::stdio()).await {
         Ok(s) => s,
         Err(e) => {

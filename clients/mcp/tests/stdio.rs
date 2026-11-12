@@ -39,10 +39,19 @@ async fn tools_list_has_the_instance_tools() {
         .map(|t| t.name.to_string())
         .collect();
     names.sort();
-    assert_eq!(
-        names,
-        ["instance_close", "instance_create", "instance_list"]
-    );
+    // A default build has no debug_* tools; only the `debug` feature adds them.
+    #[cfg(not(feature = "debug"))]
+    let want = ["instance_close", "instance_create", "instance_list"].as_slice();
+    #[cfg(feature = "debug")]
+    let want = [
+        "debug_screenshot",
+        "debug_tap",
+        "instance_close",
+        "instance_create",
+        "instance_list",
+    ]
+    .as_slice();
+    assert_eq!(names, want);
     client.cancel().await.unwrap();
 }
 
