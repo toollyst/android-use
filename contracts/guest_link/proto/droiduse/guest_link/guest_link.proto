@@ -3,20 +3,29 @@
 // 전송: gRPC over vsock. 요청·응답 대응, 스트리밍, 메타데이터는 gRPC가 맡는다.
 // 버전은 contracts/guest_link/VERSION (semver) 하나가 원천이다.
 // 서비스 바인딩(tonic 등)은 이 계약을 쓰는 레이어에서 생성한다. 계약에는 이 파일과 메시지 타입만 있다.
+// 이름은 buf STANDARD lint 규칙을 따른다 (XxxService, <Rpc>Request, <Rpc>Response).
 //
 // 메타데이터 키 (gRPC 메타데이터, 소문자):
-//   droiduse-trace-id   레이어를 관통하는 trace ID (docs/02-architecture.md §5). 모든 호출에 실을 수 있다.
-//                       값 표현은 contracts/common의 TraceId와 같다 (미정, ASCII 값).
+//   traceparent, tracestate      W3C Trace Context. 레이어를 관통하는 trace (docs/02-architecture.md §5).
+//                                모든 호출에 실을 수 있다.
+//   droiduse-session-token-bin   세션 토큰 (불투명 비밀, 바이너리 메타데이터). 아래 인증 규칙.
 //
-// 처리 규칙 (docs/10-security.md §4): 버전 협상과 인증을 거친 뒤에만 처리하고, 메시지 크기 제한을 두며,
-// 스키마 검증 후 처리한다. 열거형의 *_UNSPECIFIED 값은 거부한다.
+// 인증 (docs/10-security.md §4):
+//   - 인증 전에 부를 수 있는 RPC는 HelloService.Hello와 AuthService.Auth뿐이다.
+//   - 그 밖의 모든 RPC는 양방향 모두(게스트 → 호스트, 호스트 → 게스트) droiduse-session-token-bin에
+//     유효한 세션 토큰을 싣는다. 없거나 틀리면 gRPC UNAUTHENTICATED.
+//   - Auth는 토큰을 검증하고, Rebind는 토큰을 바꾼다. Rebind가 성공하면 이전 토큰은 폐기되고
+//     이후 호출은 새 토큰을 싣는다.
 //
-// 이 파일에는 문서가 형태까지 정한 것만 있다. 문서가 이름만 정한 필드·메시지·RPC는 넣지 않았고
+// 처리 규칙 (docs/10-security.md §4): 버전 협상과 인증을 거친 뒤에만 처리하고, 스키마 검증 후 처리한다.
+// 열거형의 *_UNSPECIFIED 값은 거부한다.
+// 메시지 크기 제한은 호스트·게스트 각각의 설정이다. 기본값은 gRPC 기본값(4 MiB)이다.
+//
+// 이 파일에는 문서와 오너 결정이 형태까지 정한 것만 있다. 이름만 정해진 필드·메시지·RPC는 넣지 않았고
 // "OPEN:" 주석으로 남겼다. 필드 번호는 추가만 하고 재사용하지 않는다.
 //
-// OPEN: 메시지 크기 제한 값 (docs/10 §4에 제한이 있다는 것만 있고 값이 없다).
-// OPEN: 인증을 gRPC 채널에 묶는 방식 (첫 호출이 Auth여야 하는지, 호출마다 메타데이터로 토큰을 싣는지,
-//       인증 전 호출이 돌려주는 상태 코드), 호스트가 호출하는 게스트 쪽 서비스에서 호스트를 인증하는 방식.
+// OPEN: 연결 구성 (vsock 포트 두 개에 gRPC 채널 두 개 / 연결 하나에 역방향 스트림).
+// OPEN: 세션 토큰을 게스트에 처음 전달하는 방식.
 // OPEN: Inspect.Snapshot(TreeSnapshot), Inspect.Diff(TreeDiff), Inspect.Node의 결과 Node, Frame.Committed,
 //       Action.Perform, App.*, App.Lifecycle, Log.Stream, WebView.Attach의 CDP 프록시 스트림,
 //       Restore.Notify는 필수 필드의 형태가 정해지지 않아 넣지 않았다.
@@ -29,24 +38,24 @@ package droiduse.guest_link;
 // 연결·인증. 호출 방향: 게스트 → 호스트 (구현: 호스트).
 // ---------------------------------------------------------------------------
 
-// 버전 협상 (필수). 게스트가 기동 후 처음 보낸다 (docs/06-guest-aosp.md §5).
+// 버전 협상 (필수). 게스트가 기동 후 처음 보낸다 (docs/06-guest-aosp.md §5). 인증 전에 부를 수 있다.
 service HelloService {
   // Hello. 협상할 수 없으면 실패한다 (UNSUPPORTED_VERSION에 해당).
-  rpc Hello(droiduse.guest_link.Hello) returns (HelloResult);
+  rpc Hello(HelloRequest) returns (HelloResponse);
 }
 
 // 인증. 인스턴스별 세션 토큰, restore 직후 복제본별 새 토큰.
 service AuthService {
-  // Auth: 세션 토큰을 제시한다.
-  rpc Auth(droiduse.guest_link.Auth) returns (AuthResult);
+  // Auth: 세션 토큰을 검증한다. 인증 전에 부를 수 있다.
+  rpc Auth(AuthRequest) returns (AuthResponse);
   // Auth.Rebind: restore 직후 1회. 이전 토큰을 제시하고 복제본별 새 토큰을 받는다.
-  // 이전 토큰은 폐기된다 (docs/10-security.md §4).
-  rpc Rebind(AuthRebind) returns (AuthRebindResult);
+  // 이전 토큰은 폐기된다 (docs/10-security.md §4). 메타데이터에는 이전 토큰을 싣는다.
+  rpc Rebind(RebindRequest) returns (RebindResponse);
 }
 
 // Hello 요청.
 // OPEN: capabilities[] (원소 타입과 값 집합 미정).
-message Hello {
+message HelloRequest {
   // guest_link 프로토콜 버전 (semver, contracts/guest_link/VERSION).
   string protocol_version = 1;
   // 게스트 빌드 fingerprint (Build.FINGERPRINT).
@@ -54,19 +63,19 @@ message Hello {
 }
 
 // Hello 결과. 문서에 결과 값이 없다.
-message HelloResult {}
+message HelloResponse {}
 
 // Auth 요청.
-message Auth {
+message AuthRequest {
   // 인스턴스별 세션 토큰 (불투명 비밀).
   bytes session_token = 1;
 }
 
 // Auth 결과. 문서에 결과 값이 없다.
-message AuthResult {}
+message AuthResponse {}
 
 // Auth.Rebind 요청.
-message AuthRebind {
+message RebindRequest {
   // restore 전의 세션 토큰 (불투명 비밀).
   bytes prev_token = 1;
   // 게스트가 본 VMGenID (16바이트).
@@ -74,7 +83,7 @@ message AuthRebind {
 }
 
 // Auth.Rebind 결과.
-message AuthRebindResult {
+message RebindResponse {
   // 이 복제본의 새 세션 토큰 (불투명 비밀).
   bytes session_token = 1;
 }
@@ -117,7 +126,7 @@ enum Source {
 
 // Inspect.Subscribe 요청.
 // OPEN: throttle_ms (정수 폭 미정).
-message InspectSubscribe {
+message SubscribeRequest {
   // 구독할 소스.
   repeated Source sources = 1;
   // 구독할 디스플레이 번호 (FrameId.display).
@@ -125,7 +134,7 @@ message InspectSubscribe {
 }
 
 // Inspect.Node 요청.
-message InspectNode {
+message NodeRequest {
   // 노드 ID (불투명 문자열, docs/04-adp.md §3.2).
   string node_id = 1;
 }
@@ -138,11 +147,11 @@ message InspectNode {
 // OPEN: Attach { target_id } → CDP 프록시 스트림. 스트림 원소 형태가 정해지지 않아 RPC를 넣지 않았다.
 service WebViewService {
   // WebView.Targets: 타깃 목록.
-  rpc Targets(WebViewTargets) returns (WebViewTargetsResult);
+  rpc Targets(TargetsRequest) returns (TargetsResponse);
 }
 
 // WebView.Targets 요청. 문서에 인자가 없다.
-message WebViewTargets {}
+message TargetsRequest {}
 
 // WebView 디버깅 타깃 하나.
 message WebViewTarget {
@@ -155,13 +164,13 @@ message WebViewTarget {
 }
 
 // WebView.Targets 결과.
-message WebViewTargetsResult {
+message TargetsResponse {
   // 타깃 목록.
   repeated WebViewTarget targets = 1;
 }
 
 // WebView.Attach 요청.
-message WebViewAttach {
+message AttachRequest {
   // 붙을 타깃 ID (WebViewTarget.target_id).
   string target_id = 1;
 }
@@ -173,14 +182,14 @@ message WebViewAttach {
 // 디버그.
 service DebugService {
   // Debug.SetAdb: adbd 켜기·끄기.
-  rpc SetAdb(DebugSetAdb) returns (DebugSetAdbResult);
+  rpc SetAdb(SetAdbRequest) returns (SetAdbResponse);
 }
 
 // Debug.SetAdb 요청.
-message DebugSetAdb {
+message SetAdbRequest {
   // 켜면 true.
   bool enabled = 1;
 }
 
 // Debug.SetAdb 결과. 문서에 결과 값이 없다.
-message DebugSetAdbResult {}
+message SetAdbResponse {}
