@@ -1,4 +1,4 @@
-//! Word splitting for the forbidden-concept lint ("대소문자 무시, 단어 단위").
+//! Word splitting and matching for the forbidden-concept lint ("대소문자 무시, 단어 접두 일치").
 //!
 //! A chunk of text (identifier, string literal, file name, crate name) is split into
 //! lowercase words at:
@@ -7,9 +7,15 @@
 //!  - the end of an upper-case run followed by a lower-case letter (`AOSPBuild` -> aosp, build)
 //!  - a letter/digit change (`aosp15` -> aosp, 15)
 //!
-//! A concept matches when its own words appear as a contiguous run of the chunk's words.
-//! So `package_name` matches `PackageName`, `PACKAGE_NAME` and `"package name"`, while
-//! `android` does not match `androidboot` (one word).
+//! A concept matches when its words appear as a contiguous run of the chunk's words, where
+//! every word but the last must be equal and the last chunk word need only *start with* the
+//! concept's last word. So `android` matches `androidboot`, `tenant` matches `tenants`, and
+//! `package_name` matches `PackageName` and `package_names`, while `activity` does not match
+//! `subactivity` (prefix only). Exact words listed as exceptions for the concept
+//! (`LAYERS.toml [forbidden_exceptions]`) are not matched by the prefix rule; the concept's
+//! own word always matches.
+
+use std::collections::BTreeSet;
 
 pub fn split_words(s: &str) -> Vec<String> {
     let chars: Vec<char> = s.chars().collect();
@@ -42,9 +48,23 @@ pub fn split_words(s: &str) -> Vec<String> {
     words
 }
 
-/// True if `needle` occurs as a contiguous run inside `hay`.
-pub fn contains_run(hay: &[String], needle: &[String]) -> bool {
-    !needle.is_empty() && hay.windows(needle.len()).any(|w| w == needle)
+/// True if `needle` occurs in `hay` as a contiguous run whose last word is a prefix match
+/// (see the module docs). A hay word in `exceptions` does not prefix-match; a hay word equal
+/// to the needle's last word always matches.
+pub fn contains_prefix_run(
+    hay: &[String],
+    needle: &[String],
+    exceptions: &BTreeSet<String>,
+) -> bool {
+    let Some((last, head)) = needle.split_last() else {
+        return false;
+    };
+    hay.windows(needle.len()).any(|w| {
+        let (w_last, w_head) = w.split_last().expect("window is non-empty");
+        w_head == head
+            && w_last.starts_with(last.as_str())
+            && (w_last == last || !exceptions.contains(w_last))
+    })
 }
 
 #[cfg(test)]
@@ -53,6 +73,10 @@ mod tests {
 
     fn w(s: &str) -> Vec<String> {
         split_words(s)
+    }
+
+    fn m(hay: &str, needle: &str) -> bool {
+        contains_prefix_run(&w(hay), &w(needle), &BTreeSet::new())
     }
 
     #[test]
@@ -67,10 +91,31 @@ mod tests {
     }
 
     #[test]
-    fn runs() {
-        assert!(contains_run(&w("get_package_name"), &w("package_name")));
-        assert!(!contains_run(&w("package_or_name"), &w("package_name")));
-        assert!(contains_run(&w("Qemu"), &w("qemu")));
-        assert!(!contains_run(&w("subactivity"), &w("activity")));
+    fn prefix_runs() {
+        assert!(m("get_package_name", "package_name"));
+        assert!(m("package_names", "package_name"));
+        assert!(!m("packages_name", "package_name"));
+        assert!(!m("package_or_name", "package_name"));
+        assert!(m("Qemu", "qemu"));
+        assert!(m("qemud", "qemu"));
+        assert!(m("androidboot.hardware", "android"));
+        assert!(m("tenants", "tenant"));
+        assert!(!m("subactivity", "activity"));
+        assert!(!m("andro", "android"));
+        assert!(!m("anything", ""));
+    }
+
+    #[test]
+    fn exceptions_are_exact_words() {
+        let ex: BTreeSet<String> = ["androidboot".to_string()].into();
+        let c = w("android");
+        assert!(!contains_prefix_run(&w("androidboot"), &c, &ex));
+        assert!(contains_prefix_run(&w("androidbootx"), &c, &ex));
+        assert!(contains_prefix_run(&w("android"), &c, &ex));
+        // An exception on one word does not hide another match in the same chunk.
+        assert!(contains_prefix_run(&w("androidboot_android"), &c, &ex));
+        // An exception equal to the concept word never disables it.
+        let ex: BTreeSet<String> = ["android".to_string()].into();
+        assert!(contains_prefix_run(&w("android"), &c, &ex));
     }
 }

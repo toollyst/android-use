@@ -4,6 +4,9 @@
 //! (`LAYERS.toml [forbidden]`). The lexers here only need to tell those three apart:
 //! they are not full language lexers. Where a lexer is unsure, it errs towards
 //! treating text as code (checked), never towards treating code as a comment.
+//!
+//! Patch files (`*.patch`, `*.diff`) are a special case: only the lines the patch adds
+//! are checked (see [`lex_patch`]).
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChunkKind {
@@ -11,6 +14,8 @@ pub enum ChunkKind {
     StringLiteral,
     /// Text in a file whose syntax is unknown or has no identifiers (checked as a whole).
     Text,
+    /// A line a patch adds, without its leading `+` (checked as a whole).
+    AddedLine,
 }
 
 impl ChunkKind {
@@ -19,6 +24,7 @@ impl ChunkKind {
             ChunkKind::Identifier => "identifier",
             ChunkKind::StringLiteral => "string literal",
             ChunkKind::Text => "text",
+            ChunkKind::AddedLine => "added line",
         }
     }
 }
@@ -42,6 +48,8 @@ pub enum Syntax {
     Xml,
     /// No comment syntax known: every line is checked.
     Plain,
+    /// Unified diff: only added lines are checked.
+    Patch,
 }
 
 /// Picks the syntax from the file name. Unknown files are `Plain` (fully checked).
@@ -60,6 +68,7 @@ pub fn syntax_for(file_name: &str) -> Syntax {
             return Syntax::Hash;
         }
         "xml" | "html" | "htm" | "svg" | "xsd" | "xsl" => return Syntax::Xml,
+        "patch" | "diff" => return Syntax::Patch,
         _ => {}
     }
     match lower.as_str() {
@@ -75,8 +84,94 @@ pub fn lex(src: &str, syntax: Syntax) -> Vec<Chunk> {
     match syntax {
         Syntax::Plain => lex_plain(src),
         Syntax::Xml => lex_xml(src),
+        Syntax::Patch => lex_patch(src),
         _ => Lexer::new(src, syntax).run(),
     }
+}
+
+/// `@@ -a[,b] +c[,d] @@...` -> (old line count, new line count). Counts default to 1.
+fn hunk_header(line: &str) -> Option<(u64, u64)> {
+    fn count(range: &str) -> Option<u64> {
+        let mut parts = range.splitn(2, ',');
+        parts.next()?.parse::<u64>().ok()?;
+        match parts.next() {
+            Some(n) => n.parse().ok(),
+            None => Some(1),
+        }
+    }
+    let rest = line.strip_prefix("@@ -")?;
+    let (old, rest) = rest.split_once(' ')?;
+    let rest = rest.strip_prefix('+')?;
+    let (new, rest) = rest.split_once(' ')?;
+    if !rest.starts_with("@@") {
+        return None;
+    }
+    Some((count(old)?, count(new)?))
+}
+
+fn is_new_file_header(line: &str) -> bool {
+    line == "+++" || line.starts_with("+++ ") || line.starts_with("+++\t")
+}
+
+/// Unified diff: emits only the lines the patch adds (`+`), without the `+`.
+///
+/// Hunks are tracked by the counts in their `@@` headers, so inside a hunk every `+` line is
+/// an added line, even one whose content starts with `++`. Outside hunks the `+++` file
+/// header is skipped; context (` `), removed (`-`), `\ No newline` and all other header or
+/// message lines are not checked. Fail-closed: a `+` line outside any recognized hunk (a
+/// malformed or hand-edited patch) that is not a `+++` header is still checked.
+fn lex_patch(src: &str) -> Vec<Chunk> {
+    let mut out = Vec::new();
+    // Remaining (old, new) lines of the current hunk.
+    let mut hunk: Option<(u64, u64)> = None;
+    for (i, line) in src.lines().enumerate() {
+        let mut emit = |text: &str| {
+            let t = text.trim();
+            if !t.is_empty() {
+                out.push(Chunk {
+                    kind: ChunkKind::AddedLine,
+                    text: t.to_string(),
+                    line: i + 1,
+                });
+            }
+        };
+        if let Some((old, new)) = hunk.as_mut() {
+            let consumed = match line.chars().next() {
+                Some('+') if *new > 0 => {
+                    *new -= 1;
+                    emit(&line[1..]);
+                    true
+                }
+                Some('-') if *old > 0 => {
+                    *old -= 1;
+                    true
+                }
+                // Some tools strip the space of an empty context line.
+                Some(' ') | None if *old > 0 && *new > 0 => {
+                    *old -= 1;
+                    *new -= 1;
+                    true
+                }
+                Some('\\') => true,
+                // Does not fit the hunk: treat it as outside any hunk.
+                _ => false,
+            };
+            if !consumed || (*old == 0 && *new == 0) {
+                hunk = None;
+            }
+            if consumed {
+                continue;
+            }
+        }
+        if let Some(counts) = hunk_header(line) {
+            hunk = (counts != (0, 0)).then_some(counts);
+        } else if !is_new_file_header(line)
+            && let Some(rest) = line.strip_prefix('+')
+        {
+            emit(rest);
+        }
+    }
+    out
 }
 
 fn lex_plain(src: &str) -> Vec<Chunk> {
@@ -374,6 +469,36 @@ mod tests {
         assert_eq!(syntax_for("Cargo.toml"), Syntax::Hash);
         assert_eq!(syntax_for("Android.bp"), Syntax::CLike);
         assert_eq!(syntax_for("Makefile"), Syntax::Hash);
-        assert_eq!(syntax_for("0001-x.patch"), Syntax::Plain);
+        assert_eq!(syntax_for("0001-x.patch"), Syntax::Patch);
+        assert_eq!(syntax_for("fix.DIFF"), Syntax::Patch);
+        assert_eq!(syntax_for("notes.txt"), Syntax::Plain);
+    }
+
+    #[test]
+    fn patch_only_added_lines() {
+        let src = "Subject: a1\n--- a/x\n+++ b/x\n@@ -1,3 +1,4 @@ a2\n a3\n-a4\n+b1\n+++b2\n\n\\ No newline\n+++ b/y\n@@ -0,0 +1 @@\n+b3\n";
+        let t = texts(src, Syntax::Patch);
+        assert_eq!(
+            t,
+            vec![
+                (ChunkKind::AddedLine, "b1".into(), 7),
+                (ChunkKind::AddedLine, "++b2".into(), 8),
+                (ChunkKind::AddedLine, "b3".into(), 13),
+            ]
+        );
+    }
+
+    #[test]
+    fn patch_outside_hunk_plus_lines_are_checked() {
+        // Hunk too short for its lines: the extra `+` line is still checked.
+        let src = "@@ -1 +1 @@\n-a\n+b1\n+b2\n+++ b/z\n";
+        let t = texts(src, Syntax::Patch);
+        assert_eq!(
+            t,
+            vec![
+                (ChunkKind::AddedLine, "b1".into(), 3),
+                (ChunkKind::AddedLine, "b2".into(), 4),
+            ]
+        );
     }
 }

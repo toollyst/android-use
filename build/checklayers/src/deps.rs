@@ -28,11 +28,17 @@ struct Package {
 
 #[derive(Deserialize)]
 struct Dependency {
+    /// The real package name (not the `rename`d alias).
     name: String,
     rename: Option<String>,
     kind: Option<String>,
     path: Option<PathBuf>,
+    /// `None` for path dependencies, else e.g. `registry+https://...` or `git+https://...`.
+    source: Option<String>,
 }
+
+/// `cargo metadata` source id of crates.io (whatever protocol is used to reach it).
+const CRATES_IO: &str = "registry+https://github.com/rust-lang/crates.io-index";
 
 /// A workspace member, located in the repo.
 pub struct Member {
@@ -237,6 +243,9 @@ pub fn check(root: &Path, cfg: &Config, members: &[Member], out: &mut Vec<Violat
             }
 
             let Some(dpath) = &d.path else {
+                if src.special == Some(Special::Contracts) {
+                    check_contracts_external(cfg, d, &loc, out);
+                }
                 continue;
             };
             let Some(drel) = relativize(root, dpath) else {
@@ -274,9 +283,29 @@ pub fn check(root: &Path, cfg: &Config, members: &[Member], out: &mut Vec<Violat
                 loc: &loc,
                 dloc: &dloc,
             };
-            check_edge(&edge, &chain, out);
+            check_edge(cfg, &edge, &chain, out);
         }
     }
+}
+
+/// A non-path dependency of a contracts crate: allowed only for a crates.io crate whose
+/// real package name is in `LAYERS.toml [contracts] allow_external`.
+fn check_contracts_external(cfg: &Config, d: &Dependency, loc: &str, out: &mut Vec<Violation>) {
+    let kind = dep_kind(d);
+    let source = d.source.as_deref().unwrap_or("unknown source");
+    let listed = cfg.contracts_allow_external.contains(&d.name);
+    let why = if !listed {
+        "is not in LAYERS.toml [contracts] allow_external".to_string()
+    } else if d.source.as_deref() != Some(CRATES_IO) {
+        format!("comes from {source}; allow_external covers crates.io crates only")
+    } else {
+        return;
+    };
+    out.push(Violation::new(
+        Rule::ContractsExternal,
+        loc.to_string(),
+        format!("{kind} on external crate `{}` ({source}) {why}", d.name),
+    ));
 }
 
 /// One path dependency from a layer crate to a layer crate.
@@ -291,7 +320,7 @@ struct Edge<'a> {
     dloc: &'a str,
 }
 
-fn check_edge(edge: &Edge<'_>, chain: &[&DirConfig], out: &mut Vec<Violation>) {
+fn check_edge(cfg: &Config, edge: &Edge<'_>, chain: &[&DirConfig], out: &mut Vec<Violation>) {
     let Edge {
         src,
         src_dir,
@@ -301,23 +330,38 @@ fn check_edge(edge: &Edge<'_>, chain: &[&DirConfig], out: &mut Vec<Violation>) {
         dloc,
     } = *edge;
     if src.name == dst.name {
-        for c in chain.iter().filter(|c| c.forbid_siblings) {
-            if !dst_dir.starts_with(&c.dir) {
-                continue;
-            }
-            let (a, b) = (module_under(src_dir, &c.dir), module_under(dst_dir, &c.dir));
-            if a != b {
-                out.push(Violation::new(
-                    Rule::ForbidSiblings,
-                    loc.to_string(),
-                    format!(
-                        "{dloc}: `{a}` -> `{b}` are sibling modules under {} (forbid_siblings in {})",
-                        c.dir.display(),
-                        c.file.display()
-                    ),
-                ));
-            }
+        // Same layer: only within one first-level module, or to an `allow_siblings` module.
+        let (a, b) = (
+            module_under(src_dir, &src.path),
+            module_under(dst_dir, &src.path),
+        );
+        if a == b {
+            return;
         }
+        let root_cfg = cfg.layer_root_config(src);
+        if !b.is_empty() && root_cfg.is_some_and(|c| c.allow_siblings.contains(&b)) {
+            return;
+        }
+        let show = |m: &str| {
+            if m.is_empty() {
+                "(layer root)".to_string()
+            } else {
+                m.to_string()
+            }
+        };
+        out.push(Violation::new(
+            Rule::SiblingModule,
+            loc.to_string(),
+            format!(
+                "{dloc}: `{}` -> `{}` are sibling modules of layer `{}` ({}) and may not depend on each other directly (`{}` is not in allow_siblings of {}/LAYER.toml)",
+                show(&a),
+                show(&b),
+                src.name,
+                src.path.display(),
+                show(&b),
+                src.path.display()
+            ),
+        ));
         return;
     }
     if let Err((rule, why)) = global_rule(src, dst) {

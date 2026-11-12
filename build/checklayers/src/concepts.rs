@@ -1,20 +1,24 @@
 //! Forbidden-concept lint (`LAYERS.toml [forbidden]` + `LAYER.toml forbid_concepts`).
 //!
 //! Checked: identifiers, string literals, file and directory names, dependency crate names
-//! (the latter in `deps.rs`). Not checked: comments and `*.md` documents. Case-insensitive,
-//! word-level (see `words.rs`).
+//! (the latter in `deps.rs`); in `*.patch` / `*.diff` files only the lines the patch adds.
+//! Not checked: comments and `*.md` documents. Case-insensitive, word-prefix matching with
+//! per-concept exceptions (see `words.rs`).
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use crate::config::{Config, DirConfig, Layer};
+use crate::config::{Config, DirConfig, Layer, concept_key};
 use crate::lexer::{self, ChunkKind};
-use crate::words::{contains_run, split_words};
+use crate::words::{contains_prefix_run, split_words};
 use crate::{Entry, Rule, Stats, Violation};
 
 pub struct Concept {
     pub raw: String,
     words: Vec<String>,
+    /// Exact words exempt from this concept's prefix match (`[forbidden_exceptions]`).
+    exceptions: BTreeSet<String>,
     /// Where the concept is declared, for messages.
     pub sources: String,
 }
@@ -28,11 +32,10 @@ pub struct Hit<'a> {
 pub fn concepts_for(cfg: &Config, layer: &Layer, chain: &[&DirConfig]) -> Vec<Concept> {
     let mut list: Vec<(String, Vec<String>)> = Vec::new();
     let mut add = |raw: &str, source: String| {
-        let words = split_words(raw);
-        if words.is_empty() {
+        let key = concept_key(raw);
+        if key.is_empty() {
             return;
         }
-        let key = words.join(" ");
         match list.iter_mut().find(|(k, _)| *k == key) {
             Some((_, s)) => {
                 if !s.contains(&source) {
@@ -56,6 +59,11 @@ pub fn concepts_for(cfg: &Config, layer: &Layer, chain: &[&DirConfig]) -> Vec<Co
         .map(|(key, sources)| Concept {
             raw: key.replace(' ', "_"),
             words: key.split(' ').map(str::to_string).collect(),
+            exceptions: cfg
+                .concept_exceptions
+                .get(&key)
+                .cloned()
+                .unwrap_or_default(),
             sources: sources.join(", "),
         })
         .collect()
@@ -65,7 +73,7 @@ pub fn matches<'a>(concepts: &'a [Concept], text: &str) -> Vec<Hit<'a>> {
     let words = split_words(text);
     concepts
         .iter()
-        .filter(|c| contains_run(&words, &c.words))
+        .filter(|c| contains_prefix_run(&words, &c.words, &c.exceptions))
         .map(|c| Hit {
             concept: &c.raw,
             sources: &c.sources,
