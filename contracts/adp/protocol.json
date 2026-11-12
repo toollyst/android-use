@@ -573,12 +573,12 @@
         },
         {
           "name": "dispatchKey",
-          "description": "One key event on the session's display. type is the android.view.KeyEvent action. Repeat count and meta state are not defined yet; they will be optional parameters.",
+          "description": "One key event on the session's display. type is the android.view.KeyEvent action. The key is injected through the virtio-input keyboard, the same path as touch. There are no meta state or repeat count parameters: a modifier is expressed by pressing and releasing the modifier key itself (for example ACTION_DOWN KEYCODE_SHIFT_LEFT, then the key, then ACTION_UP KEYCODE_SHIFT_LEFT).",
           "scope": "session",
           "targetTypes": ["display"],
           "parameters": [
             { "name": "type", "type": "string", "enum": ["ACTION_DOWN", "ACTION_UP"] },
-            { "name": "keyCode", "description": "The name of an android.view.KeyEvent KEYCODE_* constant, for example KEYCODE_ENTER. A name the server's Android release does not define: INVALID_PARAMS.", "type": "string" },
+            { "name": "keyCode", "description": "The name of an android.view.KeyEvent KEYCODE_* constant, for example KEYCODE_ENTER. A name the server's Android release does not define: INVALID_PARAMS. A defined name that the guest's key layout (the stock AOSP Generic.kl) cannot produce cannot be injected and is answered with an error.", "type": "string" },
             { "name": "resolveOn", "description": "Default: frameCommitted.", "optional": true, "$ref": "ResolveOn" },
             { "name": "timeoutMs", "description": "Bound on the wait for resolveOn frameCommitted and idle. Default: a server setting.", "optional": true, "type": "integer", "format": "uint32" }
           ],
