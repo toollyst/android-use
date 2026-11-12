@@ -54,12 +54,12 @@
   5. 트리에 대응되지 않는 레이어(게임 surface 등)는 `layer` 노드로 붙는다
 
 ## 4. 메시지 형식
-CDP와 같은 JSON-RPC 스타일.
+CDP와 같은 JSON-RPC 스타일. 64비트 정수(`vsyncId`, `sfFrame` 등)는 JSON에서 10진 문자열로, 32비트 이하 정수는 숫자로 보낸다.
 ```jsonc
 // 요청
 { "id": 7, "sessionId": "s_abc", "method": "UI.getTree", "params": { "sources": ["view","compose","a11y"], "depth": -1 } }
 // 응답
-{ "id": 7, "result": { "frameId": { "display": 0, "vsyncId": 18233, "sfFrame": 9921 }, "root": { /* Node */ } } }
+{ "id": 7, "result": { "frameId": { "display": 0, "vsyncId": "18233", "sfFrame": "9921" }, "root": { /* Node */ } } }
 // 이벤트
 { "method": "UI.treeMutated", "sessionId": "s_abc", "params": { "baseFrameId": {...}, "frameId": {...}, "ops": [ /* insert/remove/update */ ] } }
 ```
