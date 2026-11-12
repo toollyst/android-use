@@ -1,0 +1,17 @@
+[package]
+name = "droiduse-vmm-api"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "host/vmm/api: the MachineFactory runtime uses (a stub until the VMM REST client exists)"
+
+[dependencies]
+droiduse-contracts-common = { path = "../../../contracts/common" }
+droiduse-contracts-machine = { path = "../../../contracts/machine" }
+async-trait.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+bytes.workspace = true
+tokio.workspace = true

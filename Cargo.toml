@@ -25,6 +25,7 @@ members = [
     "build/patchlint",
     "build/xtask",
     "contracts/*",
+    "host/vmm/api",
 ]
 exclude = [
     "contracts/codegen",
@@ -52,6 +53,10 @@ base64 = "0.23.1"
 # serde, serde_json (below, shared with the build/ entries): the JSON (de)serialization derives of the
 # generated adp types, and the representation of an `object` without properties (an arbitrary JSON
 # object: params, result and data of the envelope).
+# host/ layers. tracing: spans at each layer, so one trace follows a call (docs/02-architecture.md §5).
+# tokio: test executor only (dev-dependency); no layer depends on an async runtime yet.
+tracing = { version = "0.1.44", default-features = false, features = ["std"] }
+tokio = { version = "1.54.1", default-features = false, features = ["macros", "rt"] }
 # build/ tooling only.
 # build/codegen: prost-build, prost-types (proto → Rust messages, reading protoc's FileDescriptorSet),
 # ureq (pinned protoc download, rustls), zip (unpacking the official protoc release zip), sha2 (checking

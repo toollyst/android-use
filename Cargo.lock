@@ -334,6 +334,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "droiduse-vmm-api"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "droiduse-contracts-common",
+ "droiduse-contracts-machine",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "either"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -665,6 +677,12 @@ dependencies = [
  "hashbrown 0.15.5",
  "indexmap",
 ]
+
+[[package]]
+name = "pin-project-lite"
+version = "0.2.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "prettyplease"
@@ -1022,6 +1040,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio"
+version = "1.54.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b52fd3255258d26fac7264ab5a76b53c13367136dc011d3d6ad4f8ed070396a3"
+dependencies = [
+ "pin-project-lite",
+ "tokio-macros",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "2.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78773a2a397f451582ce068015985c33193cf6dea8b74d2a639fe457b2f07b0e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.10",
+]
+
+[[package]]
 name = "toml"
 version = "1.2.1+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1059,6 +1098,25 @@ name = "toml_writer"
 version = "1.2.0+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "009dbb7700f11c55ef83aebbe4c0e9cf1f1ac0844bd8d6f00dc38f302026e13a"
+
+[[package]]
+name = "tracing"
+version = "0.1.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
+dependencies = [
+ "pin-project-lite",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-core"
+version = "0.1.36"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
+dependencies = [
+ "once_cell",
+]
 
 [[package]]
 name = "typed-path"
