@@ -334,6 +334,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "droiduse-runtime-auth"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64 0.23.1",
+ "droiduse-contracts-common",
+ "droiduse-contracts-spi",
+ "getrandom 0.4.3",
+ "sha2",
+ "subtle",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "droiduse-runtime-instance"
 version = "0.1.0"
 dependencies = [

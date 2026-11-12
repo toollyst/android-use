@@ -1,0 +1,20 @@
+[package]
+name = "droiduse-runtime-auth"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "host/runtime/auth: the default Authenticator and Authorizer (one local server token)"
+
+[dependencies]
+droiduse-contracts-common = { path = "../../../contracts/common" }
+droiduse-contracts-spi = { path = "../../../contracts/spi" }
+async-trait.workspace = true
+base64.workspace = true
+getrandom.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio.workspace = true
