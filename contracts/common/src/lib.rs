@@ -82,7 +82,7 @@ pub struct TraceId(pub String);
 /// 인스턴스·세션·스냅샷의 불투명 key-value (`docs/glossary.md` labels).
 ///
 /// 코어는 내용을 해석하지 않는다. 테넌트·플랜 같은 개념은 코어가 아니라
-/// labels와 SPI 구현체 쪽에 있다 (ADR-0007).
+/// labels와 SPI 구현체 쪽에 있다 (`docs/01-principles.md` P4).
 ///
 /// `BTreeMap`은 순서를 결정적으로 만들기 위한 선택이다 (스냅샷 메타데이터 해시 등).
 /// 키·값 제약(문자 집합, 길이, 예약 접두사)은 미정이다.
