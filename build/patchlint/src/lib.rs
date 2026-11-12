@@ -1,7 +1,7 @@
 //! `tools/patch/lint.sh` (`cargo xtask patch-lint`): lints our upstream patches.
 //!
 //! Scope: every file under `third_party/<x>/patches/` except `series` and `README.md` at the
-//! top of that directory (docs/08-upstream-and-patches.md §2 "디렉터리"). Each one is linted
+//! top of that directory (docs/08-upstream-and-patches.md §2 "Directory"). Each one is linted
 //! as a patch, whatever its name, so nothing escapes by its name. Other directories under
 //! `third_party/<x>/` (e.g. `aosp/security/` ASB backports) are not ours.
 //!
@@ -352,7 +352,7 @@ fn collect(
     Ok(())
 }
 
-/// The 기능 cells (first column) of the body rows of every table in docs/scope.md.
+/// The feature cells (first column) of the body rows of every table in docs/scope.md.
 fn load_scope(root: &Path) -> Result<BTreeSet<String>, Error> {
     let text = fs::read_to_string(root.join(SCOPE_FILE)).map_err(|e| {
         Error(format!(
@@ -637,9 +637,9 @@ fn check_header(text: &str, cfg: &config::Header, out: &mut Vec<(Rule, String)>)
         && !is_subject(&v, cfg.numbered_subject)
     {
         let form = if cfg.numbered_subject {
-            "`[PATCH] droiduse: <한 줄 요약>` (or `[PATCH vN n/m] droiduse: ...`)"
+            "`[PATCH] droiduse: <one-line summary>` (or `[PATCH vN n/m] droiduse: ...`)"
         } else {
-            "`[PATCH] droiduse: <한 줄 요약>`"
+            "`[PATCH] droiduse: <one-line summary>`"
         };
         out.push(invalid("Subject", format!("must be {form}, found `{v}`")));
     }
@@ -753,7 +753,7 @@ fn check_fields(ctx: &Ctx<'_>, f: &Fields, out: &mut Vec<(Rule, String)>) {
     {
         out.push((
             Rule::ScopeCell,
-            format!("`Scope-cell:` `{c}` is not the 기능 cell of a row in {SCOPE_FILE}"),
+            format!("`Scope-cell:` `{c}` is not the feature cell of a row in {SCOPE_FILE}"),
         ));
     }
 }

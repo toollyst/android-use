@@ -3,8 +3,9 @@
 //! Format (root `OWNERS`): `<path-glob> <owner> [<owner>...]`, `#` comments. A glob is
 //! relative to the directory of its `OWNERS` file; `*` does not cross `/`. A rule applies to
 //! a path when its glob matches the path or one of its ancestor directories; within one
-//! file the last applying rule wins. "하위 디렉터리 OWNERS가 우선": the nearest `OWNERS` file
-//! (from the path's directory up to the repo root) with an applying rule decides.
+//! file the last applying rule wins. "An OWNERS file in a subdirectory takes precedence":
+//! the nearest `OWNERS` file (from the path's directory up to the repo root) with an
+//! applying rule decides.
 //!
 //! Only GitHub user logins (`login` or `@login`) can name an approver. Team entries
 //! (`org/team`) cannot be resolved to people offline, so they validate no one, and anything
