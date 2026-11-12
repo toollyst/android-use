@@ -52,14 +52,12 @@ buf build contracts/guest_link/proto && buf build contracts/node/proto   # local
   `LAYER.toml` and README files.
 
 ## CI status
-- Linux x86_64, Linux arm64, macOS arm64: green on main `13f6fc9`.
-- Windows: the CRLF failure is fixed (`.gitattributes`). The next failure was
-  one test, `lint_sh_passes_the_exit_code_through` (it picked up WSL's
-  `System32\bash.exe`); the fix is in this push and is **unverified until the
-  CI run on this push finishes**. With `--no-fail-fast` now set, this run is
-  also the first time the remaining Windows test targets report.
-- First thing to do next session: check the latest run
-  (`gh run list --repo toollyst/android-use --limit 3`).
+- All four OSes are green on main `4a239bb` (run 43198603292): Linux x86_64,
+  Linux arm64, macOS arm64, Windows x86_64. That run was the first complete
+  Windows run (CRLF fix via `.gitattributes`, `lint.sh` test resolving Git Bash
+  instead of WSL's `System32\bash.exe`, `--no-fail-fast`).
+- Check the latest run at the start of a session:
+  `gh run list --repo toollyst/android-use --limit 3`.
 
 ## Branches pushed besides main
 - `docs/readme-draft`: English rewrite of the root `README.md` in the style of
@@ -70,7 +68,7 @@ buf build contracts/guest_link/proto && buf build contracts/node/proto   # local
 ## M0 gate (docs/13-roadmap.md §3): where it stands
 1. Eight contracts with versions: present.
 2. CI fails on real violations: binary-level exit-code tests exist
-   (`build/xtask/tests/exit_codes.rs`); green on three OSes, Windows pending.
+   (`build/xtask/tests/exit_codes.rs`); green on all four OSes.
    Not in CI yet: `contracts/compat` back-compat checks, `buf` checks (new work,
    needs owner approval).
 3. Call path `clients/mcp → host/entrypoints/adp_server → … → host/vmm` with
