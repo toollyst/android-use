@@ -61,7 +61,8 @@ CDP와 같은 JSON-RPC 스타일. 정의 파일은 `contracts/adp/protocol.json`
 - 64비트 정수(`vsyncId`, `sfFrame` 등)는 JSON에서 10진 문자열로, 32비트 이하 정수는 숫자로 보낸다.
 - 바이너리 WebSocket 메시지는 앞 8바이트(big-endian 부호 없는 정수)가 그 메시지가 속한 요청의 `id`이고 나머지가 내용이다. 서버는 같은 `id`의 응답보다 먼저 보낸다.
 - 인증: WebSocket 업그레이드의 `Authorization: Bearer` 헤더(RFC 6750), 또는 첫 메시지 `Connection.auth`. 인증 전에는 다른 모든 메시지를 `UNAUTHENTICATED`로 거부한다. URL 쿼리 문자열의 토큰은 받지 않는다. 두 경로 모두 `Authenticator` SPI로 검증한다.
-- 노드 액션은 `resolveOn`(`dispatched` | `frameCommitted` | `idle`, 기본 `frameCommitted`)으로 응답 시점을 고르고 그 시점의 `frameId`를 돌려준다(`dispatched`는 없음). `idle`의 판정 기준과 기본 시간 제한은 서버 설정이다.
+- 화면을 바꾸는 입력 커맨드(노드 액션, 좌표 입력, 텍스트 입력)는 `resolveOn`(`dispatched` | `frameCommitted` | `idle`, 기본 `frameCommitted`)으로 응답 시점을 고르고 그 시점의 `frameId`를 돌려준다(`dispatched`는 없음). `idle`의 판정 기준과 기본 시간 제한은 서버 설정이다.
+- `UI.treeMutated`의 `ops`는 노드 ID 기반 연산(`insert {parentId, previousSiblingId?, node}`, `update {nodeId, changes}`, `remove {nodeId}`, `move {nodeId, parentId, previousSiblingId?}`)이다. 배열 순서대로 적용하고 부모가 자식보다 먼저 온다. `update`는 바뀐 필드만 싣고 `null`은 선택 필드를 지운다. 클라이언트의 현재 프레임이 `baseFrameId`가 아니면 `getTree`로 다시 받는다. 다른 기준 프레임에 적용하지 않는다. diff 형식은 `DiffFormat`(현재 `nodeOps` 하나)으로 확장한다.
 - 스크린샷은 `transfer`(`binary` | `base64`, 기본 `binary`)로 전달 방식을 고른다.
 ```jsonc
 // 요청
@@ -97,7 +98,7 @@ type Rect = { x: number; y: number; w: number; h: number };
 | `Target` | `getTargets` (인스턴스, 디스플레이, 윈도우, 프로세스, WebView), `attachToTarget(targetId)` → `sessionId` | `targetCreated/Destroyed` |
 | `UI` | `getTree(sources, depth, windowId?)`, `querySelector(selector)`, `querySelectorAll`, `getNode(id)`, `describe(id)` | `treeMutated`, `windowChanged`, `focusChanged`, `imeChanged` |
 | `Accessibility` | `getFullAXTree`, `performAction(nodeId, action, args)` | - |
-| `Input` | 좌표: `dispatchTouch(type, pointers)`, `dispatchKey` (`KEYCODE_*` 이름), `insertText(text)` / 노드: `click`, `longClick`, `setText`, `scrollTo`, `scrollBy`, `swipe` (`resolveOn`) | - |
+| `Input` | 좌표: `dispatchTouch(type, pointers)`, `dispatchKey` (`KEYCODE_*` 이름), `insertText(text)` / 노드: `click`, `longClick`, `setText`, `scrollTo`, `scrollBy`, `swipe` (모두 `resolveOn`) | - |
 | `Screen` | `captureScreenshot(region?, layer?, frameId?, format, transfer?)`, `startScreencast`, `stopScreencast`, `getDisplays` | `frameCommitted`, `screencastFrame` |
 | `App` | `install(source)`, `uninstall`, `launch(pkg, activity?, intent?)`, `stop`, `clearData`, `list`, `getActivityStack`, `grantPermission`, `pushFile`, `pullFile` | `activityLifecycle`, `anr`, `crash`, `notificationPosted` |
 | `Network` | `enable`, `getResponseBody`, `setPolicy` | `requestWillBeSent`, `responseReceived`, `flowOpened/Closed` |
@@ -114,9 +115,24 @@ role:button[enabled]
 class:android.widget.EditText >> nth(0)
 xpath://*[@resourceId="..."]
 ```
+- 문법과 의미는 `contracts/adp/selectors/selector.ebnf`, 구현이 통과해야 하는 사례는 `contracts/adp/selectors/conformance.json`이다.
+- `엔진:본문`을 `>>`로 잇고 `nth(N)`으로 고른다. 이어 붙인 셀렉터는 앞 결과를 기준으로 찾는다(Playwright 셀렉터 체이닝). 엔진은 열린 집합이고 모르는 엔진은 `INVALID_PARAMS`다.
+- 속성은 ADP `Node` 필드 그대로다. `text~`는 대소문자를 구분하는 부분 일치다. `xpath`는 XPath 1.0이고 통합 트리의 XML 표현(요소 이름 `node`, 속성 = `Node` 필드) 위에서 평가한다.
 
 ### 에러 코드
-`FRAME_EXPIRED`, `NODE_GONE`, `TARGET_GONE`, `NOT_ACTIONABLE`, `TIMEOUT`, `POLICY_DENIED`, `UNAUTHENTICATED`, `UNSUPPORTED_VERSION`
+| 코드 | 언제 |
+|---|---|
+| `FRAME_EXPIRED` | 요청한 frameId의 프레임이 링 버퍼에 없다 |
+| `NODE_GONE` | 대상 노드가 사라졌다 |
+| `TARGET_GONE` | 대상 타깃이 사라졌다 |
+| `NOT_ACTIONABLE` | 대상에 액션을 수행할 수 없다 |
+| `TIMEOUT` | 시간 초과 |
+| `POLICY_DENIED` | 정책이 거부했다 (attach 때 인가 거부 포함) |
+| `UNAUTHENTICATED` | 자격 증명이 없거나 유효하지 않다, 또는 인증 전 메시지 |
+| `UNSUPPORTED_VERSION` | 협상할 수 있는 프로토콜 버전이 없다 |
+| `INVALID_REQUEST` | 봉투가 잘못됐다: 형식 오류, 진행 중인 요청과 겹치는 `id`, `sessionId` 범위 위반, 연결 상태가 허용하지 않는 메시지 |
+| `METHOD_NOT_FOUND` | 알 수 없는 메서드 |
+| `INVALID_PARAMS` | 인자가 정의를 따르지 않는다: 필수 값 누락, 타입·열거값 불일치, 알 수 없는 union `kind`, 셀렉터 문법 오류·알 수 없는 엔진, 알 수 없는 diff 형식 |
 
 ## 6. 전송 경로
 ```

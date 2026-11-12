@@ -1,0 +1,85 @@
+/* ADP selector grammar and semantics (contracts/adp, type UI.Selector).
+ *
+ * Notation: W3C EBNF as defined in Extensible Markup Language (XML) 1.0, Fifth Edition, section 6.
+ * The selector is the value of a JSON string; JSON string escaping applies before this grammar.
+ * Conformance cases: conformance.json in this directory. Implementations must pass all of them.
+ *
+ * Errors: input that does not match Selector, an engine name that is not listed below, an XPath body
+ * that is not an XPath 1.0 Expr, or an XPath result that is not a node-set: INVALID_PARAMS.
+ */
+
+Selector         ::= EngineStep ( Sep Step )*
+Step             ::= EngineStep | Nth
+Sep              ::= #x20* '>>' #x20*
+
+/* ---------------------------------------------------------------------------------------------
+ * Chaining and nth. Model taken from Playwright selector chaining
+ * (https://playwright.dev/docs/other-locators): "When selectors are chained, the next one is queried
+ * relative to the previous one's result", and the nth selector narrows the matches by a zero-based
+ * index where -1 is the last match. Applied here as follows:
+ *
+ * - Document order is pre-order over the tree, children in array order.
+ * - The first EngineStep is evaluated over every node of the tree, the root included.
+ * - Each later EngineStep is evaluated over the proper descendants of each node in the current
+ *   result; the new result is their union in document order, without duplicates.
+ * - Nth selects one node of the current result by index: 0 is the first, -1 the last; an index
+ *   outside the result gives an empty result. Nth cannot be the first step.
+ * - An empty result stays empty through later steps.
+ * ------------------------------------------------------------------------------------------- */
+
+Nth              ::= 'nth(' Integer ')'
+Integer          ::= '-'? [0-9]+
+
+/* ---------------------------------------------------------------------------------------------
+ * Engines. The set is open: new engines are added by name. An engine name that this version does
+ * not list is rejected with INVALID_PARAMS before its body is read.
+ * Attributes are exactly the ADP Node fields (protocol.json UI.Node). An absent field never
+ * equals a value. Comparisons are by Unicode code point, case-sensitive, without normalization.
+ * ------------------------------------------------------------------------------------------- */
+
+EngineStep       ::= ResourceIdStep | TextStep | TextContainsStep | RoleStep | ClassStep | XPathStep
+EngineName       ::= [a-z] [a-z0-9~#x2D]*        /* the name before the first ':' */
+
+/* resource-id: Node.resourceId equals the body. */
+ResourceIdStep   ::= 'resource-id:' ( Quoted | ResourceId )
+ResourceId       ::= [A-Za-z0-9_.:/]+
+
+/* text: Node.text equals the body. */
+TextStep         ::= 'text:' Quoted
+
+/* text~: Node.text contains the body as a substring (an empty body matches every present text). */
+TextContainsStep ::= 'text~:' Quoted
+
+/* role: Node.role equals the name, and every state filter holds.
+ * [s] and [s=true]: field s is true. [s=false]: field s is false or absent. */
+RoleStep         ::= 'role:' ( Quoted | RoleName ) StateFilter*
+RoleName         ::= [A-Za-z] [A-Za-z0-9_#x2D]*
+StateFilter      ::= '[' StateName ( '=' ( 'true' | 'false' ) )? ']'
+StateName        ::= 'visible' | 'enabled' | 'focused' | 'selected' | 'checked' | 'clickable'
+                   | 'longClickable' | 'scrollable' | 'editable'
+
+/* class: Node.className equals the body. */
+ClassStep        ::= 'class:' ( Quoted | ClassName )
+ClassName        ::= [A-Za-z0-9_.$]+
+
+/* xpath: an XPath 1.0 Expr (W3C Recommendation, 16 November 1999) evaluated over the XML view below.
+ * The result must be a node-set; its element nodes are the matches, other node kinds are ignored.
+ * Context node: the document node for the first step, otherwise each node of the current result;
+ * only proper descendants of the context node count as matches.
+ *
+ * XML view of the tree: the document node has one element child, the root Node. Every Node is an
+ * element named "node"; its children are child elements in array order. Every present Node field
+ * whose value is a string, number or boolean is an attribute with the field's name as in
+ * protocol.json (e.g. resourceId, className): strings as is, booleans "true" or "false", numbers as
+ * the XPath 1.0 string() of the value. bounds, actions and children are not attributes. There are
+ * no text nodes and no namespaces.
+ *
+ * The body ends before the first '>>' outside an XPath literal. Spaces before that '>>' are XPath
+ * whitespace and have no effect. */
+XPathStep        ::= 'xpath:' XPathBody
+XPathBody        ::= ( XPathLiteral | XPathChar )+
+XPathLiteral     ::= '"' [^"]* '"' | "'" [^']* "'"
+XPathChar        ::= [^"'>] | '>'                /* a '>' is never followed by another '>' here */
+
+/* Quoted body: '\"' is '"', '\\' is '\'; any other '\' is a syntax error. */
+Quoted           ::= '"' ( [^"#x5C] | #x5C '"' | #x5C #x5C )* '"'

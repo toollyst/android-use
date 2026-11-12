@@ -1,0 +1,456 @@
+{
+  "description": "ADP selector conformance cases (grammar: selector.ebnf). Each case evaluates selector over trees[tree] (a UI.Node). expect: the matching node ids in document order. error: the ADP error code the selector must be rejected with.",
+  "trees": {
+    "login": {
+      "id": "n0",
+      "source": "view",
+      "windowId": "w1",
+      "className": "android.widget.FrameLayout",
+      "package": "com.app",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 2400
+      },
+      "visible": true,
+      "children": [
+        {
+          "id": "n1",
+          "source": "view",
+          "windowId": "w1",
+          "className": "android.widget.LinearLayout",
+          "package": "com.app",
+          "bounds": {
+            "x": 0,
+            "y": 0,
+            "w": 1080,
+            "h": 1200
+          },
+          "visible": true,
+          "children": [
+            {
+              "id": "n2",
+              "source": "view",
+              "windowId": "w1",
+              "className": "android.widget.TextView",
+              "package": "com.app",
+              "resourceId": "com.app:id/title",
+              "text": "로그인 해주세요",
+              "bounds": {
+                "x": 0,
+                "y": 0,
+                "w": 100,
+                "h": 10
+              },
+              "visible": true
+            },
+            {
+              "id": "n3",
+              "source": "view",
+              "windowId": "w1",
+              "className": "android.widget.EditText",
+              "package": "com.app",
+              "resourceId": "com.app:id/username",
+              "editable": true,
+              "enabled": true,
+              "focused": true,
+              "clickable": true,
+              "bounds": {
+                "x": 0,
+                "y": 100,
+                "w": 100,
+                "h": 10
+              },
+              "visible": true
+            },
+            {
+              "id": "n4",
+              "source": "view",
+              "windowId": "w1",
+              "className": "android.widget.EditText",
+              "package": "com.app",
+              "resourceId": "com.app:id/password",
+              "editable": true,
+              "enabled": false,
+              "bounds": {
+                "x": 0,
+                "y": 200,
+                "w": 100,
+                "h": 10
+              },
+              "visible": true
+            },
+            {
+              "id": "n5",
+              "source": "view",
+              "windowId": "w1",
+              "className": "android.widget.Button",
+              "package": "com.app",
+              "resourceId": "com.app:id/login_button",
+              "text": "로그인",
+              "role": "button",
+              "clickable": true,
+              "enabled": true,
+              "bounds": {
+                "x": 0,
+                "y": 300,
+                "w": 100,
+                "h": 10
+              },
+              "visible": true
+            },
+            {
+              "id": "n6",
+              "source": "view",
+              "windowId": "w1",
+              "className": "android.widget.Button",
+              "package": "com.app",
+              "resourceId": "com.app:id/cancel",
+              "text": "취소",
+              "role": "button",
+              "clickable": true,
+              "enabled": false,
+              "bounds": {
+                "x": 0,
+                "y": 400,
+                "w": 100,
+                "h": 10
+              },
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "n7",
+          "source": "view",
+          "windowId": "w1",
+          "className": "androidx.compose.ui.platform.AndroidComposeView",
+          "package": "com.app",
+          "bounds": {
+            "x": 0,
+            "y": 1200,
+            "w": 1080,
+            "h": 1200
+          },
+          "visible": true,
+          "children": [
+            {
+              "id": "n8",
+              "source": "compose",
+              "windowId": "w1",
+              "role": "button",
+              "text": "Log in",
+              "enabled": true,
+              "clickable": true,
+              "bounds": {
+                "x": 0,
+                "y": 1300,
+                "w": 100,
+                "h": 10
+              },
+              "visible": true
+            },
+            {
+              "id": "n9",
+              "source": "compose",
+              "windowId": "w1",
+              "text": "Login \"help\"",
+              "bounds": {
+                "x": 0,
+                "y": 1400,
+                "w": 100,
+                "h": 10
+              },
+              "visible": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "name": "resource-id bare",
+      "tree": "login",
+      "selector": "resource-id:com.app:id/login_button",
+      "expect": [
+        "n5"
+      ]
+    },
+    {
+      "name": "resource-id quoted",
+      "tree": "login",
+      "selector": "resource-id:\"com.app:id/cancel\"",
+      "expect": [
+        "n6"
+      ]
+    },
+    {
+      "name": "text exact",
+      "tree": "login",
+      "selector": "text:\"로그인\"",
+      "expect": [
+        "n5"
+      ]
+    },
+    {
+      "name": "text~ substring",
+      "tree": "login",
+      "selector": "text~:\"로그\"",
+      "expect": [
+        "n2",
+        "n5"
+      ]
+    },
+    {
+      "name": "text~ is case-sensitive",
+      "tree": "login",
+      "selector": "text~:\"log\"",
+      "expect": []
+    },
+    {
+      "name": "text~ capital",
+      "tree": "login",
+      "selector": "text~:\"Log\"",
+      "expect": [
+        "n8",
+        "n9"
+      ]
+    },
+    {
+      "name": "quoted escapes",
+      "tree": "login",
+      "selector": "text~:\"\\\"help\\\"\"",
+      "expect": [
+        "n9"
+      ]
+    },
+    {
+      "name": "text~ empty body matches every present text",
+      "tree": "login",
+      "selector": "text~:\"\"",
+      "expect": [
+        "n2",
+        "n5",
+        "n6",
+        "n8",
+        "n9"
+      ]
+    },
+    {
+      "name": "role",
+      "tree": "login",
+      "selector": "role:button",
+      "expect": [
+        "n5",
+        "n6",
+        "n8"
+      ]
+    },
+    {
+      "name": "role quoted",
+      "tree": "login",
+      "selector": "role:\"button\"",
+      "expect": [
+        "n5",
+        "n6",
+        "n8"
+      ]
+    },
+    {
+      "name": "role state filter",
+      "tree": "login",
+      "selector": "role:button[enabled]",
+      "expect": [
+        "n5",
+        "n8"
+      ]
+    },
+    {
+      "name": "role state filter false",
+      "tree": "login",
+      "selector": "role:button[enabled=false]",
+      "expect": [
+        "n6"
+      ]
+    },
+    {
+      "name": "absent boolean counts as false",
+      "tree": "login",
+      "selector": "role:button[checked=false]",
+      "expect": [
+        "n5",
+        "n6",
+        "n8"
+      ]
+    },
+    {
+      "name": "class",
+      "tree": "login",
+      "selector": "class:android.widget.EditText",
+      "expect": [
+        "n3",
+        "n4"
+      ]
+    },
+    {
+      "name": "nth first",
+      "tree": "login",
+      "selector": "class:android.widget.EditText >> nth(0)",
+      "expect": [
+        "n3"
+      ]
+    },
+    {
+      "name": "nth last",
+      "tree": "login",
+      "selector": "class:android.widget.EditText >> nth(-1)",
+      "expect": [
+        "n4"
+      ]
+    },
+    {
+      "name": "nth out of range",
+      "tree": "login",
+      "selector": "class:android.widget.EditText >> nth(2)",
+      "expect": []
+    },
+    {
+      "name": "nth after filter",
+      "tree": "login",
+      "selector": "role:button[enabled] >> nth(-1)",
+      "expect": [
+        "n8"
+      ]
+    },
+    {
+      "name": "chain descendants",
+      "tree": "login",
+      "selector": "class:android.widget.LinearLayout >> role:button",
+      "expect": [
+        "n5",
+        "n6"
+      ]
+    },
+    {
+      "name": "chain excludes the scope node itself",
+      "tree": "login",
+      "selector": "class:android.widget.Button >> role:button",
+      "expect": []
+    },
+    {
+      "name": "chain of three",
+      "tree": "login",
+      "selector": "class:android.widget.FrameLayout >> class:android.widget.LinearLayout >> class:android.widget.Button",
+      "expect": [
+        "n5",
+        "n6"
+      ]
+    },
+    {
+      "name": "separator without spaces",
+      "tree": "login",
+      "selector": "class:androidx.compose.ui.platform.AndroidComposeView>>text~:\"Log\"",
+      "expect": [
+        "n8",
+        "n9"
+      ]
+    },
+    {
+      "name": "xpath attribute",
+      "tree": "login",
+      "selector": "xpath://*[@resourceId=\"com.app:id/username\"]",
+      "expect": [
+        "n3"
+      ]
+    },
+    {
+      "name": "xpath element name",
+      "tree": "login",
+      "selector": "xpath://node[@source=\"compose\"]",
+      "expect": [
+        "n8",
+        "n9"
+      ]
+    },
+    {
+      "name": "xpath root element",
+      "tree": "login",
+      "selector": "xpath:/node",
+      "expect": [
+        "n0"
+      ]
+    },
+    {
+      "name": "xpath boolean attribute in a chain",
+      "tree": "login",
+      "selector": "class:android.widget.LinearLayout >> xpath:.//node[@clickable=\"true\"]",
+      "expect": [
+        "n3",
+        "n5",
+        "n6"
+      ]
+    },
+    {
+      "name": "xpath literal containing the separator",
+      "tree": "login",
+      "selector": "xpath://node[@text=\"a>>b\"]",
+      "expect": []
+    },
+    {
+      "name": "unknown engine",
+      "tree": "login",
+      "selector": "unknown:foo",
+      "error": "INVALID_PARAMS"
+    },
+    {
+      "name": "text needs a quoted body",
+      "tree": "login",
+      "selector": "text:로그인",
+      "error": "INVALID_PARAMS"
+    },
+    {
+      "name": "nth cannot be first",
+      "tree": "login",
+      "selector": "nth(0)",
+      "error": "INVALID_PARAMS"
+    },
+    {
+      "name": "invalid escape",
+      "tree": "login",
+      "selector": "text:\"a\\n\"",
+      "error": "INVALID_PARAMS"
+    },
+    {
+      "name": "unknown state",
+      "tree": "login",
+      "selector": "role:button[pressed]",
+      "error": "INVALID_PARAMS"
+    },
+    {
+      "name": "trailing separator",
+      "tree": "login",
+      "selector": "class:android.widget.EditText >> ",
+      "error": "INVALID_PARAMS"
+    },
+    {
+      "name": "xpath result is not a node-set",
+      "tree": "login",
+      "selector": "xpath:count(//node)",
+      "error": "INVALID_PARAMS"
+    },
+    {
+      "name": "empty selector",
+      "tree": "login",
+      "selector": "",
+      "error": "INVALID_PARAMS"
+    },
+    {
+      "name": "leading space",
+      "tree": "login",
+      "selector": " role:button",
+      "error": "INVALID_PARAMS"
+    }
+  ]
+}
