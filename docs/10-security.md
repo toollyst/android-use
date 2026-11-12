@@ -24,7 +24,8 @@
 
 ## 4. 채널 보안
 - 모든 채널 인증 (ADP, Node API, 스트림, guest_link 세션 토큰)
-- guest_link는 버전 협상과 메시지 크기 제한, 스키마 검증 후 처리
+- guest_link는 버전 협상과 메시지 크기 제한, 스키마 검증 후 처리. 크기 제한은 호스트·게스트 설정이고 기본값은 gRPC 기본값(4 MiB)이다
+- guest_link 인증: Hello와 Auth 말고는 모든 호출이 양방향 모두 세션 토큰을 바이너리 메타데이터(`droiduse-session-token-bin`)에 싣는다. 유효한 토큰이 없으면 gRPC `UNAUTHENTICATED`
 - ADP 인증: 업그레이드의 `Authorization: Bearer` 헤더 또는 첫 메시지 `Connection.auth`. 인증 전 메시지는 모두 거부한다. URL 쿼리 문자열의 토큰은 받지 않는다
 - TLS 가시성(세션별 CA 주입)은 정책으로만 켜고, 켜진 세션은 메타데이터에 표시
 - 복제 후 재인증: restore 직후 복제본마다 새 토큰을 발급하고 이전 토큰은 폐기한다
