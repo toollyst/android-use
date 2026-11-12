@@ -357,6 +357,7 @@ dependencies = [
  "droiduse-contracts-common",
  "droiduse-contracts-instance",
  "droiduse-contracts-machine",
+ "droiduse-vmm-api",
  "tokio",
  "tracing",
 ]

@@ -6,6 +6,9 @@
 //! answered unchanged, code and reason included; a VM the factory does create is destroyed again
 //! and `create` answers `UNIMPLEMENTED` with the reason `host/runtime/instance#create`. No
 //! instance is ever added, so `list` is empty and `close` answers `TARGET_GONE`.
+//!
+//! [`vmm_machine_factory`] is the factory of `host/vmm/api` for the entry points: they may not
+//! depend on `host/vmm` themselves (`host/entrypoints/LAYER.toml`), so runtime hands it out.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -37,6 +40,12 @@ pub struct InstanceSettings {
     pub boot_image: PathBuf,
     /// The guest vendor_boot image.
     pub vendor_boot_image: PathBuf,
+}
+
+/// The `MachineFactory` of `host/vmm/api`, for an entry point to pass to
+/// [`LocalInstanceManager::new`].
+pub fn vmm_machine_factory() -> Arc<dyn MachineFactory> {
+    Arc::new(droiduse_vmm_api::StubMachineFactory::new())
 }
 
 /// The `InstanceManager` of this host.
@@ -259,6 +268,14 @@ mod tests {
             }
             other => panic!("unexpected boot {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn the_vmm_factory_answers_through_the_manager() {
+        let m = LocalInstanceManager::new(vmm_machine_factory(), settings());
+        let e = expect_err(m.create(CreateInstance::default()).await);
+        assert_eq!(e.code, Some(ErrorCode::Unimplemented));
+        assert_eq!(e.reason.as_deref(), Some("host/vmm/api#create"));
     }
 
     #[tokio::test]

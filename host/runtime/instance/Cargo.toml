@@ -10,6 +10,7 @@ description = "host/runtime/instance: InstanceManager over an injected MachineFa
 droiduse-contracts-common = { path = "../../../contracts/common" }
 droiduse-contracts-instance = { path = "../../../contracts/instance" }
 droiduse-contracts-machine = { path = "../../../contracts/machine" }
+droiduse-vmm-api = { path = "../../vmm/api" }
 async-trait.workspace = true
 tracing.workspace = true
 
