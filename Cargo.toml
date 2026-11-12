@@ -27,6 +27,7 @@ members = [
     "contracts/*",
     "host/runtime/instance",
     "host/vmm/api",
+    "testing/e2e",
 ]
 exclude = [
     "contracts/codegen",

@@ -1,0 +1,1279 @@
+# E2E scenario inventory (docs/11-quality-and-testing.md §7, docs/13-roadmap.md §3).
+# The red scenarios are the remaining work. Run: testing/e2e/run.sh <target>.
+#
+# Per scenario:
+#   id         dot-separated lowercase words; stable (not tied to the milestone)
+#   title      one line: the verifiable behaviour
+#   milestone  m0..m6: the gate the scenario belongs to
+#   scope      the docs/scope.md row (Feature cell) it covers, or gate:M0..gate:M6
+#   tags       area tags (run.sh filters on them); never a milestone name or `all`
+#   needs      in order: the contract surfaces first, then the components in call order.
+#              `<component>` is located through DROIDUSE_E2E_<COMPONENT PATH>;
+#              `contracts/adp#<Domain.name or ERROR_CODE>` is met when protocol.json defines
+#              it; any other `<component>#<surface>` is a surface no contract defines yet.
+#   expect     "pass", or "red" with `reason` (error code UNIMPLEMENTED). Strict: the first
+#              unmet need, or the reason a component answers UNIMPLEMENTED with, must equal
+#              `reason`; anything else is FAIL.
+#
+# Reason convention (one place in code: manifest::Reason): missing:<component>,
+# missing:<component>#<surface>, <component>#<operation>.
+#
+# M0 protocol scenarios are expected to PASS once the stub binaries exist; the feature
+# scenarios (M1-M6) stay red until their features land.
+
+# Per-scenario timeout in seconds.
+timeout_s = 120
+
+# ---------------------------------------------------------------------------------------
+# docs/scope.md v1 rows that no MCP/ADP-level scenario can verify
+# ---------------------------------------------------------------------------------------
+
+[[not_e2e]]
+scope = "KeyMint (host)"
+why = "ADP has no keystore surface; KeyMint is verified by the VTS KeyMint suite and CTS keystore tests on the release image (testing/cts) and by host/runtime/keymint tests"
+
+[[not_e2e]]
+scope = "Host: macOS arm64 · Linux arm64"
+why = "a host-matrix row: verified by running the whole E2E suite on each host of the boot matrix (docs/11 §4), not by a scenario of its own"
+
+[[not_e2e]]
+scope = "Host: Linux x86_64 · Windows x86_64"
+why = "a host-matrix row: verified by running the whole E2E suite on each host of the boot matrix (docs/11 §4, M5 gate), not by a scenario of its own"
+
+[[not_e2e]]
+scope = "Re-authentication after cloning"
+why = "the guest_link session token is a secret that never crosses ADP; token rotation and revocation are verified by host/runtime/identity and guest restore tests"
+
+[[not_e2e]]
+scope = "Release bundle · signing · SBOM"
+why = "a property of the release artifacts, verified by the tools/bundle checks (signature, SBOM, provenance, reproducibility), not by driving a running instance"
+
+# ---------------------------------------------------------------------------------------
+# M0: ADP connection, authentication, envelope, trace, MCP, gate probe
+# ---------------------------------------------------------------------------------------
+
+[[scenario]]
+id = "adp.auth.upgrade-bearer"
+title = "An upgrade with a valid Authorization: Bearer token is accepted and Connection.hello succeeds"
+milestone = "m0"
+scope = "Channel authentication"
+tags = ["adp", "auth", "security"]
+needs = ["contracts/adp#Connection.hello", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.auth.upgrade-invalid-token"
+title = "An upgrade whose bearer token does not authenticate gets HTTP 401 with WWW-Authenticate: Bearer error=\"invalid_token\""
+milestone = "m0"
+scope = "Channel authentication"
+tags = ["adp", "auth", "security"]
+needs = ["contracts/adp#UNAUTHENTICATED", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.auth.upgrade-rate-limit"
+title = "Failed upgrades over the rate limit get HTTP 429 with Retry-After"
+milestone = "m0"
+scope = "Channel authentication"
+tags = ["adp", "auth", "security"]
+needs = ["host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.auth.first-message"
+title = "Connection.auth as the first message authenticates a connection whose upgrade had no Authorization header"
+milestone = "m0"
+scope = "Channel authentication"
+tags = ["adp", "auth", "security"]
+needs = ["contracts/adp#Connection.auth", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.auth.first-message-invalid"
+title = "A failed Connection.auth is answered UNAUTHENTICATED and the connection is closed with status 1008"
+milestone = "m0"
+scope = "Channel authentication"
+tags = ["adp", "auth", "security", "close-codes"]
+needs = ["contracts/adp#Connection.auth", "contracts/adp#UNAUTHENTICATED", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.auth.first-message-rate-limit"
+title = "Connection.auth failures over the rate limit close the connection with status 1008"
+milestone = "m0"
+scope = "Channel authentication"
+tags = ["adp", "auth", "security", "close-codes"]
+needs = ["contracts/adp#Connection.auth", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.auth.deadline"
+title = "A connection not authenticated within the authentication deadline is closed with status 1008"
+milestone = "m0"
+scope = "Channel authentication"
+tags = ["adp", "auth", "security", "close-codes"]
+needs = ["host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.auth.before-auth-rejected"
+title = "Every message other than Connection.auth before authentication is answered UNAUTHENTICATED"
+milestone = "m0"
+scope = "Channel authentication"
+tags = ["adp", "auth", "security"]
+needs = ["contracts/adp#UNAUTHENTICATED", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.auth.query-token-rejected"
+title = "A token in the URL query string does not authenticate"
+milestone = "m0"
+scope = "Channel authentication"
+tags = ["adp", "auth", "security"]
+needs = ["host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.auth.second-auth-rejected"
+title = "Connection.auth on an authenticated connection is INVALID_REQUEST and the connection keeps its credential"
+milestone = "m0"
+scope = "Channel authentication"
+tags = ["adp", "auth", "security"]
+needs = ["contracts/adp#Connection.auth", "contracts/adp#INVALID_REQUEST", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.auth.token-file"
+title = "The token the server reads from the per-user token file authenticates, and the file is readable by that user only"
+milestone = "m0"
+scope = "Channel authentication"
+tags = ["adp", "auth", "security"]
+needs = ["host/entrypoints/adp_server#token-file", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server#token-file"
+
+[[scenario]]
+id = "adp.transport.local-endpoint"
+title = "By default the server listens on a per-user Unix socket or named pipe that other users cannot open"
+milestone = "m0"
+scope = "Channel authentication"
+tags = ["adp", "transport", "security"]
+needs = ["host/entrypoints/adp_server#local-endpoint", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server#local-endpoint"
+
+[[scenario]]
+id = "adp.transport.tcp-loopback"
+title = "TCP is off by default and, when enabled, binds to loopback only and still requires authentication"
+milestone = "m0"
+scope = "Channel authentication"
+tags = ["adp", "transport", "security"]
+needs = ["host/entrypoints/adp_server#tcp-loopback", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server#tcp-loopback"
+
+[[scenario]]
+id = "adp.hello.required-first"
+title = "A command other than Connection.hello right after authentication is INVALID_REQUEST"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["adp", "hello"]
+needs = ["contracts/adp#Connection.hello", "contracts/adp#INVALID_REQUEST", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.hello.second-rejected"
+title = "A second Connection.hello is INVALID_REQUEST"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["adp", "hello"]
+needs = ["contracts/adp#Connection.hello", "contracts/adp#INVALID_REQUEST", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.hello.compatible"
+title = "Connection.hello with a caret-compatible version returns the server's protocolVersion"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["adp", "hello"]
+needs = ["contracts/adp#Connection.hello", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.hello.unsupported-version"
+title = "An incompatible version gets UNSUPPORTED_VERSION with error.data.protocolVersion, then close status 1008"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["adp", "hello", "close-codes"]
+needs = ["contracts/adp#Connection.hello", "contracts/adp#UNSUPPORTED_VERSION", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.envelope.malformed"
+title = "A text message that is not a Request object is INVALID_REQUEST"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["adp", "envelope"]
+needs = ["contracts/adp#INVALID_REQUEST", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.envelope.id-range"
+title = "An id that is not an integer in 0..2^53-1 is INVALID_REQUEST"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["adp", "envelope"]
+needs = ["contracts/adp#INVALID_REQUEST", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.envelope.duplicate-id"
+title = "An id that duplicates an in-flight request is INVALID_REQUEST"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["adp", "envelope"]
+needs = ["contracts/adp#INVALID_REQUEST", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.envelope.session-scope"
+title = "A sessionId on a connection-scoped command, none on a session-scoped one, or one the connection does not hold is INVALID_REQUEST"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["adp", "envelope"]
+needs = ["contracts/adp#Target.getTargets", "contracts/adp#INVALID_REQUEST", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.envelope.unknown-method"
+title = "An unknown method is METHOD_NOT_FOUND"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["adp", "envelope"]
+needs = ["contracts/adp#METHOD_NOT_FOUND", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.envelope.invalid-params"
+title = "Params that do not follow the definition (missing value, wrong type, unknown enum value) are INVALID_PARAMS"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["adp", "envelope"]
+needs = ["contracts/adp#INVALID_PARAMS", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.close.message-too-big"
+title = "A message above the maximum message size closes the connection with status 1009"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["adp", "close-codes"]
+needs = ["host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.close.uncorrelated-binary"
+title = "A client binary message that follows no pending App.uploadChunk closes the connection with status 1002"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["adp", "close-codes", "binary"]
+needs = ["contracts/adp#App.uploadChunk", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.keepalive.unanswered-pings"
+title = "The server pings at the keepalive interval and closes the connection after the allowed unanswered Pings"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["adp", "keepalive"]
+needs = ["host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "trace.adp.traceparent-linked"
+title = "A valid client traceparent starts a new server trace linked to the client trace (default setting)"
+milestone = "m0"
+scope = "Single trace (Perfetto)"
+tags = ["adp", "trace", "security"]
+needs = ["host/base/trace#export", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/base/trace#export"
+
+[[scenario]]
+id = "trace.adp.traceparent-invalid-ignored"
+title = "An invalid traceparent (bad format, all-zero trace-id or parent-id) is ignored, the request is not rejected and a new trace starts"
+milestone = "m0"
+scope = "Single trace (Perfetto)"
+tags = ["adp", "trace", "security"]
+needs = ["host/base/trace#export", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/base/trace#export"
+
+[[scenario]]
+id = "trace.adp.tracestate-ignored"
+title = "tracestate is ignored when traceparent is absent or ignored"
+milestone = "m0"
+scope = "Single trace (Perfetto)"
+tags = ["adp", "trace"]
+needs = ["host/base/trace#export", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/base/trace#export"
+
+[[scenario]]
+id = "mcp.stdio.initialize"
+title = "The MCP server started over stdio completes the MCP initialize handshake"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["mcp"]
+needs = ["clients/mcp"]
+expect = "red"
+reason = "missing:clients/mcp"
+
+[[scenario]]
+id = "mcp.tools.list"
+title = "tools/list returns the documented tool set (observe, act, wait_for, screenshot, app_*, session_*)"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["mcp"]
+needs = ["clients/mcp"]
+expect = "red"
+reason = "missing:clients/mcp"
+
+[[scenario]]
+id = "mcp.adp.authenticated"
+title = "The MCP server reaches the ADP server only with the per-user token; without it its tools fail UNAUTHENTICATED"
+milestone = "m0"
+scope = "Channel authentication"
+tags = ["mcp", "adp", "auth", "security"]
+needs = ["host/entrypoints/adp_server#token-file", "clients/mcp", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server#token-file"
+
+[[scenario]]
+id = "gate.probe.unimplemented"
+title = "Gate probe: an MCP call that creates an instance travels to host/vmm and returns UNIMPLEMENTED with the reason of the VM layer"
+milestone = "m0"
+scope = "gate:M0"
+tags = ["gate", "mcp", "adp"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UNIMPLEMENTED", "clients/mcp", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:clients/mcp"
+
+[[scenario]]
+id = "gate.probe.one-trace"
+title = "Gate probe: one trace id runs through clients/mcp, adp_server, services, runtime and host/vmm"
+milestone = "m0"
+scope = "Single trace (Perfetto)"
+tags = ["gate", "trace", "mcp", "adp"]
+needs = ["contracts/adp#Target.createTarget", "host/base/trace#export", "clients/mcp", "host/entrypoints/adp_server"]
+expect = "red"
+reason = "missing:host/base/trace#export"
+
+# ---------------------------------------------------------------------------------------
+# M1: production-quality boot, screen, input, network, security posture
+# ---------------------------------------------------------------------------------------
+
+[[scenario]]
+id = "instance.create.boots"
+title = "Target.createTarget creates an instance that reaches Ready (boot_completed, guest_link Ready) and emits Target.targetCreated"
+milestone = "m1"
+scope = "Android boot (boot.img/vendor_boot/bootconfig)"
+tags = ["adp", "instance", "boot"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Target.targetCreated", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "instance.close"
+title = "Target.closeTarget stops the instance, emits Target.targetDestroyed and detaches its sessions"
+milestone = "m1"
+scope = "Android boot (boot.img/vendor_boot/bootconfig)"
+tags = ["adp", "instance"]
+needs = ["contracts/adp#Target.closeTarget", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "instance.concurrent"
+title = "Several instances run concurrently on one machine as independent targets"
+milestone = "m1"
+scope = "Android boot (boot.img/vendor_boot/bootconfig)"
+tags = ["adp", "instance"]
+needs = ["contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "instance.cli"
+title = "The CLI creates, lists and stops instances through the ADP server"
+milestone = "m1"
+scope = "Android boot (boot.img/vendor_boot/bootconfig)"
+tags = ["cli", "instance"]
+needs = ["contracts/adp#Target.createTarget", "host/entrypoints/cli", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/cli"
+
+[[scenario]]
+id = "posture.user-build-avb-selinux"
+title = "A booted instance reports a user build, verified boot state green and SELinux enforcing"
+milestone = "m1"
+scope = "AVB · SELinux enforcing · user build"
+tags = ["adp", "security", "posture"]
+needs = ["contracts/adp#security-posture", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:contracts/adp#security-posture"
+
+[[scenario]]
+id = "posture.sandboxed-processes"
+title = "The VMM, every device backend process and KeyMint of an instance run in their own sandboxes"
+milestone = "m1"
+scope = "Sandbox (VMM + per device)"
+tags = ["adp", "security", "posture"]
+needs = ["contracts/adp#security-posture", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:contracts/adp#security-posture"
+
+[[scenario]]
+id = "posture.adbd-off"
+title = "adbd is off on a booted instance by default"
+milestone = "m1"
+scope = "adb enablement path for CTS"
+tags = ["adp", "security", "posture"]
+needs = ["contracts/adp#security-posture", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:contracts/adp#security-posture"
+
+[[scenario]]
+id = "cts.adb-enable-authorized"
+title = "adbd is enabled for CTS only by host authorization, and only the authorized host side can reach it"
+milestone = "m1"
+scope = "adb enablement path for CTS"
+tags = ["cli", "security", "cts"]
+needs = ["host/entrypoints/cli#adb-enable", "contracts/adp#Target.createTarget", "host/entrypoints/cli", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/cli#adb-enable"
+
+[[scenario]]
+id = "screen.displays"
+title = "Screen.getDisplays on an instance session lists display 0 with its size and density"
+milestone = "m1"
+scope = "Screen output (gfxstream)"
+tags = ["adp", "screen"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Screen.getDisplays", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "screen.home-screenshot"
+title = "A screenshot of the booted home screen is a valid image of the display size and not a uniform colour"
+milestone = "m1"
+scope = "Screen output (gfxstream)"
+tags = ["adp", "screen"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Screen.captureScreenshot", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "screen.hardware-renderer"
+title = "The guest renders through gfxstream on the host GPU, not through a software renderer"
+milestone = "m1"
+scope = "Screen output (gfxstream)"
+tags = ["adp", "screen", "posture"]
+needs = ["contracts/adp#platform-info", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:contracts/adp#platform-info"
+
+[[scenario]]
+id = "screen.frame-committed"
+title = "Screen.frameCommitted events arrive with increasing frameIds while the screen changes"
+milestone = "m1"
+scope = "Screen output (gfxstream)"
+tags = ["adp", "screen", "frame"]
+needs = ["contracts/adp#Screen.frameCommitted", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:contracts/adp#Screen.frameCommitted"
+
+[[scenario]]
+id = "input.touch.tap"
+title = "Input.dispatchTouch DOWN/UP on a test app button changes the screen as the button defines"
+milestone = "m1"
+scope = "Coordinate input"
+tags = ["adp", "input"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.dispatchTouch", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "input.touch.multi-pointer"
+title = "A two-pointer gesture (POINTER_DOWN, MOVE, POINTER_UP) reaches the app as the same MotionEvent sequence"
+milestone = "m1"
+scope = "Coordinate input"
+tags = ["adp", "input"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.dispatchTouch", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "input.key.back"
+title = "Input.dispatchKey KEYCODE_BACK navigates back in the test app"
+milestone = "m1"
+scope = "Coordinate input"
+tags = ["adp", "input"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.dispatchKey", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "input.insert-text"
+title = "Input.insertText types into the focused text field"
+milestone = "m1"
+scope = "Coordinate input"
+tags = ["adp", "input"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.insertText", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "adp.authz.targets-filtered"
+title = "Target.getTargets and target events show only the targets the principal may attach to"
+milestone = "m1"
+scope = "Channel authentication"
+tags = ["adp", "authz", "security"]
+needs = ["host/entrypoints/adp_server#authorization-policy", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server#authorization-policy"
+
+[[scenario]]
+id = "adp.authz.revoked"
+title = "A denial during a session answers the command POLICY_DENIED and ends the session with detachedFromTarget authorizationRevoked"
+milestone = "m1"
+scope = "Channel authentication"
+tags = ["adp", "authz", "security"]
+needs = ["host/entrypoints/adp_server#authorization-policy", "contracts/adp#Target.createTarget", "contracts/adp#Target.detachedFromTarget", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server#authorization-policy"
+
+# ---------------------------------------------------------------------------------------
+# M2: ADP core (tree, frames, node IDs, diffs, windows, actions, screenshots, apps, MCP)
+# ---------------------------------------------------------------------------------------
+
+[[scenario]]
+id = "disk.instances-isolated"
+title = "An app installed in one instance is absent from another instance started from the same image"
+milestone = "m2"
+scope = "GPT composite disk + CoW layers"
+tags = ["adp", "disk", "app"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.install", "contracts/adp#App.list", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "network.usernet-egress"
+title = "An app in the instance loads a page from a host-side HTTP server through usernet"
+milestone = "m2"
+scope = "Network (usernet)"
+tags = ["adp", "network"]
+needs = ["contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/webview"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "ui.tree.view"
+title = "UI.getTree with source view returns the test app's views with class, resource-id, text and screen bounds, and a frameId"
+milestone = "m2"
+scope = "View tree"
+tags = ["adp", "tree"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "ui.tree.a11y"
+title = "UI.getTree with source a11y returns roles, states and actions of the accessibility nodes"
+milestone = "m2"
+scope = "Accessibility tree"
+tags = ["adp", "tree"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "ui.tree.full-ax-tree"
+title = "Accessibility.getFullAXTree returns the full accessibility tree of the display"
+milestone = "m2"
+scope = "Accessibility tree"
+tags = ["adp", "tree"]
+needs = ["contracts/adp#Accessibility.getFullAXTree", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#Accessibility.getFullAXTree"
+
+[[scenario]]
+id = "ui.tree.compose"
+title = "Compose semantics nodes appear as children of AndroidComposeView with their bounds"
+milestone = "m2"
+scope = "Compose semantics"
+tags = ["adp", "tree", "compose"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/compose"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "ui.tree.unified"
+title = "The unified tree has the view skeleton, accessibility attributes merged into their views and Compose nodes attached, each with its source"
+milestone = "m2"
+scope = "Unified tree merge"
+tags = ["adp", "tree"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/compose"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "ui.selector.engines"
+title = "querySelector and querySelectorAll resolve resource-id, text, text~, role, class, xpath, nth and chained selectors on a live tree"
+milestone = "m2"
+scope = "Unified tree merge"
+tags = ["adp", "selector"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.querySelector", "contracts/adp#UI.querySelectorAll", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "ui.selector.invalid"
+title = "A selector syntax error or an unknown engine is INVALID_PARAMS"
+milestone = "m2"
+scope = "Unified tree merge"
+tags = ["adp", "selector"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.querySelector", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "ui.describe"
+title = "UI.describe returns the description of a node"
+milestone = "m2"
+scope = "View tree"
+tags = ["adp", "tree"]
+needs = ["contracts/adp#UI.describe", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#UI.describe"
+
+[[scenario]]
+id = "ui.node-id.stable"
+title = "A node keeps its id across scrolling and animation"
+milestone = "m2"
+scope = "Stable node IDs"
+tags = ["adp", "tree", "node-id"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "ui.node-id.not-reused"
+title = "The id of a removed node is never given to another node"
+milestone = "m2"
+scope = "Stable node IDs"
+tags = ["adp", "tree", "node-id"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "ui.node-id.gone"
+title = "UI.getNode and node actions on a removed node are NODE_GONE"
+milestone = "m2"
+scope = "Stable node IDs"
+tags = ["adp", "tree", "node-id"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getNode", "contracts/adp#NODE_GONE", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "ui.diff.apply"
+title = "Applying UI.treeMutated ops in order to the tree at baseFrameId gives the tree UI.getTree returns at frameId"
+milestone = "m2"
+scope = "Tree diff events"
+tags = ["adp", "tree", "diff"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.treeMutated", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "ui.diff.chain"
+title = "Each UI.treeMutated baseFrameId is the frameId of the previous tree state, so a gap is detectable"
+milestone = "m2"
+scope = "Tree diff events"
+tags = ["adp", "tree", "diff"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.treeMutated", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "frame.tree-screenshot-agree"
+title = "A screenshot taken with a tree's frameId shows exactly the frame of that tree"
+milestone = "m2"
+scope = "frameId synchronization"
+tags = ["adp", "frame", "screen"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "contracts/adp#Screen.captureScreenshot", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "frame.expired"
+title = "A frameId no longer in the ring buffer is FRAME_EXPIRED and no other frame is returned"
+milestone = "m2"
+scope = "frameId synchronization"
+tags = ["adp", "frame", "screen"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Screen.captureScreenshot", "contracts/adp#FRAME_EXPIRED", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "frame.input-resolve-on"
+title = "Input resolveOn dispatched, frameCommitted and idle resolve as defined, and conditionMet is false when timeoutMs elapses first"
+milestone = "m2"
+scope = "frameId synchronization"
+tags = ["adp", "frame", "input"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.click", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "ui.window.changed"
+title = "Opening a dialog emits UI.windowChanged and the dialog appears as a window target"
+milestone = "m2"
+scope = "Window · task · IME state"
+tags = ["adp", "window"]
+needs = ["contracts/adp#UI.windowChanged", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#UI.windowChanged"
+
+[[scenario]]
+id = "ui.focus.changed"
+title = "Moving focus to another field emits UI.focusChanged"
+milestone = "m2"
+scope = "Window · task · IME state"
+tags = ["adp", "window"]
+needs = ["contracts/adp#UI.focusChanged", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#UI.focusChanged"
+
+[[scenario]]
+id = "ui.ime.changed"
+title = "Showing and hiding the IME emits UI.imeChanged"
+milestone = "m2"
+scope = "Window · task · IME state"
+tags = ["adp", "window"]
+needs = ["contracts/adp#UI.imeChanged", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#UI.imeChanged"
+
+[[scenario]]
+id = "app.activity-stack"
+title = "App.getActivityStack reports the task and activity stack after launching a second activity"
+milestone = "m2"
+scope = "Window · task · IME state"
+tags = ["adp", "app", "window"]
+needs = ["contracts/adp#App.getActivityStack", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#App.getActivityStack"
+
+[[scenario]]
+id = "input.click.accessibility"
+title = "Input.click with method accessibility performs ACTION_CLICK and reports that method"
+milestone = "m2"
+scope = "Node-based actions"
+tags = ["adp", "input", "action"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.click", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "input.click.touch"
+title = "Input.click with method touch taps the node's centre and reports that method"
+milestone = "m2"
+scope = "Node-based actions"
+tags = ["adp", "input", "action"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.click", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "input.click.auto"
+title = "Input.click with method auto uses accessibility when the node exposes the action and touch otherwise"
+milestone = "m2"
+scope = "Node-based actions"
+tags = ["adp", "input", "action"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.click", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "input.long-click"
+title = "Input.longClick triggers the node's long-click behaviour with both methods"
+milestone = "m2"
+scope = "Node-based actions"
+tags = ["adp", "input", "action"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.longClick", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "input.click.not-actionable"
+title = "Input.click with method accessibility on a node without ACTION_CLICK is NOT_ACTIONABLE"
+milestone = "m2"
+scope = "Node-based actions"
+tags = ["adp", "input", "action"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.click", "contracts/adp#NOT_ACTIONABLE", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "a11y.perform-action"
+title = "Accessibility.performAction with arguments (ACTION_SET_TEXT) changes the node as the action defines"
+milestone = "m2"
+scope = "Node-based actions"
+tags = ["adp", "action"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Accessibility.performAction", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "input.set-text"
+title = "Input.setText replaces the text of an editable node"
+milestone = "m2"
+scope = "Node-based actions"
+tags = ["adp", "input", "action"]
+needs = ["contracts/adp#Input.setText", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#Input.setText"
+
+[[scenario]]
+id = "input.scroll-to"
+title = "Input.scrollTo brings an off-screen node of a scrollable list into view"
+milestone = "m2"
+scope = "Node-based actions"
+tags = ["adp", "input", "action"]
+needs = ["contracts/adp#Input.scrollTo", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#Input.scrollTo"
+
+[[scenario]]
+id = "input.scroll-by"
+title = "Input.scrollBy scrolls a scrollable node by the given amount"
+milestone = "m2"
+scope = "Node-based actions"
+tags = ["adp", "input", "action"]
+needs = ["contracts/adp#Input.scrollBy", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#Input.scrollBy"
+
+[[scenario]]
+id = "input.swipe"
+title = "Input.swipe performs a swipe gesture the app receives as one"
+milestone = "m2"
+scope = "Node-based actions"
+tags = ["adp", "input", "action"]
+needs = ["contracts/adp#Input.swipe", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#Input.swipe"
+
+[[scenario]]
+id = "adp.target-type.mismatch"
+title = "A display command in an instance session, and an App command in a display session, are INVALID_REQUEST"
+milestone = "m2"
+scope = "gate:M2"
+tags = ["adp", "envelope"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Target.attachToTarget", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "screen.capture.region"
+title = "Screen.captureScreenshot of a region returns that region of the frame it reports"
+milestone = "m2"
+scope = "Screenshots (for a given frameId)"
+tags = ["adp", "screen"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Screen.captureScreenshot", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "screen.capture.transfer"
+title = "transfer binary sends the image as a binary message with the request id before the response; base64 inlines it"
+milestone = "m2"
+scope = "Screenshots (for a given frameId)"
+tags = ["adp", "screen", "binary"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Screen.captureScreenshot", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "app.install.upload"
+title = "createUpload, uploadChunk with binary chunks and finishUpload with the SHA-256, then install, install the test app; App.list shows it"
+milestone = "m2"
+scope = "App install · launch · stop · list"
+tags = ["adp", "app", "binary"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.createUpload", "contracts/adp#App.uploadChunk", "contracts/adp#App.finishUpload", "contracts/adp#App.install", "contracts/adp#App.list", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "app.install.split"
+title = "A split APK installs from several uploads named in one install"
+milestone = "m2"
+scope = "App install · launch · stop · list"
+tags = ["adp", "app"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.install", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "app.upload.limits"
+title = "A declared size above the maximum, and a chunk above maxChunkSize, are INVALID_PARAMS before bytes are accepted"
+milestone = "m2"
+scope = "App install · launch · stop · list"
+tags = ["adp", "app", "binary"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.createUpload", "contracts/adp#App.uploadChunk", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "app.upload.sha-mismatch"
+title = "finishUpload with a SHA-256 that does not match the bytes is INVALID_PARAMS"
+milestone = "m2"
+scope = "App install · launch · stop · list"
+tags = ["adp", "app", "binary"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.finishUpload", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "app.upload.lifetime"
+title = "An upload is single-use, bound to its connection and session, and discarded on disconnect or idle expiry"
+milestone = "m2"
+scope = "App install · launch · stop · list"
+tags = ["adp", "app", "security"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.createUpload", "contracts/adp#App.install", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "app.install.failure"
+title = "Installing a corrupt APK is NOT_ACTIONABLE with the PackageInstaller status in error.data"
+milestone = "m2"
+scope = "App install · launch · stop · list"
+tags = ["adp", "app"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.install", "contracts/adp#NOT_ACTIONABLE", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "app.launch"
+title = "App.launch brings the test app's activity to the foreground"
+milestone = "m2"
+scope = "App install · launch · stop · list"
+tags = ["adp", "app"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.launch", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "app.stop"
+title = "App.stop force-stops the app and its processes are gone"
+milestone = "m2"
+scope = "App install · launch · stop · list"
+tags = ["adp", "app"]
+needs = ["contracts/adp#App.stop", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#App.stop"
+
+[[scenario]]
+id = "app.uninstall"
+title = "App.uninstall removes the app and App.list no longer shows it"
+milestone = "m2"
+scope = "App install · launch · stop · list"
+tags = ["adp", "app"]
+needs = ["contracts/adp#App.uninstall", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#App.uninstall"
+
+[[scenario]]
+id = "app.clear-data"
+title = "App.clearData removes the app's data and the next launch starts fresh"
+milestone = "m2"
+scope = "App install · launch · stop · list"
+tags = ["adp", "app"]
+needs = ["contracts/adp#App.clearData", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#App.clearData"
+
+[[scenario]]
+id = "app.activity-lifecycle"
+title = "Launching and stopping the app emits App.activityLifecycle events"
+milestone = "m2"
+scope = "App install · launch · stop · list"
+tags = ["adp", "app"]
+needs = ["contracts/adp#App.activityLifecycle", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#App.activityLifecycle"
+
+[[scenario]]
+id = "mcp.observe"
+title = "MCP observe returns a screenshot and the compressed unified tree of the same frameId, with node ids"
+milestone = "m2"
+scope = "View tree"
+tags = ["mcp", "tree", "screen"]
+needs = ["contracts/adp#Target.createTarget", "clients/mcp", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:clients/mcp"
+
+[[scenario]]
+id = "mcp.act.node"
+title = "MCP act on a node id performs the action and returns the result and the new frameId"
+milestone = "m2"
+scope = "Node-based actions"
+tags = ["mcp", "action"]
+needs = ["contracts/adp#Target.createTarget", "clients/mcp", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:clients/mcp"
+
+[[scenario]]
+id = "mcp.act.coordinates"
+title = "MCP act at x,y taps that screen point"
+milestone = "m2"
+scope = "Coordinate input"
+tags = ["mcp", "input"]
+needs = ["contracts/adp#Target.createTarget", "clients/mcp", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:clients/mcp"
+
+[[scenario]]
+id = "mcp.wait-for"
+title = "MCP wait_for returns when a selector appears or disappears, driven by tree diff events"
+milestone = "m2"
+scope = "Tree diff events"
+tags = ["mcp", "diff"]
+needs = ["contracts/adp#Target.createTarget", "clients/mcp", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:clients/mcp"
+
+[[scenario]]
+id = "mcp.screenshot"
+title = "MCP screenshot captures a given region"
+milestone = "m2"
+scope = "Screenshots (for a given frameId)"
+tags = ["mcp", "screen"]
+needs = ["contracts/adp#Target.createTarget", "clients/mcp", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:clients/mcp"
+
+[[scenario]]
+id = "mcp.app-tools"
+title = "MCP app_install, app_launch, app_stop, app_list and app_clear manage the test app"
+milestone = "m2"
+scope = "App install · launch · stop · list"
+tags = ["mcp", "app"]
+needs = ["contracts/adp#App.stop", "contracts/adp#App.clearData", "contracts/adp#Target.createTarget", "clients/mcp", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#App.stop"
+
+# ---------------------------------------------------------------------------------------
+# M3: snapshots, sessions, clone uniqueness
+# ---------------------------------------------------------------------------------------
+
+[[scenario]]
+id = "session.acquire-release"
+title = "A session is acquired from the pool ready to use and released back"
+milestone = "m3"
+scope = "Session acquire/reset/release"
+tags = ["adp", "session"]
+needs = ["contracts/adp#Session.acquire", "contracts/adp#Session.release", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:contracts/adp#Session.acquire"
+
+[[scenario]]
+id = "session.reset"
+title = "Session.reset returns the session to its golden state: installed apps and written data are gone"
+milestone = "m3"
+scope = "Session acquire/reset/release"
+tags = ["adp", "session", "disk"]
+needs = ["contracts/adp#Session.reset", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#Session.reset"
+
+[[scenario]]
+id = "session.info"
+title = "Session.getInfo reports the session's snapshot origin and state"
+milestone = "m3"
+scope = "Session acquire/reset/release"
+tags = ["adp", "session"]
+needs = ["contracts/adp#Session.getInfo", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:contracts/adp#Session.getInfo"
+
+[[scenario]]
+id = "snapshot.create-restore"
+title = "Session.snapshot creates a golden snapshot; an instance restored from it is Ready with the same app state and emits Session.restored"
+milestone = "m3"
+scope = "Snapshot creation · restore"
+tags = ["adp", "snapshot"]
+needs = ["contracts/adp#Session.snapshot", "contracts/adp#Session.restored", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
+expect = "red"
+reason = "missing:contracts/adp#Session.snapshot"
+
+[[scenario]]
+id = "snapshot.incompatible-rejected"
+title = "Restoring a snapshot whose metadata does not match the image, devices or protocol is rejected"
+milestone = "m3"
+scope = "Snapshot creation · restore"
+tags = ["adp", "snapshot"]
+needs = ["contracts/adp#Session.snapshot", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:contracts/adp#Session.snapshot"
+
+[[scenario]]
+id = "clone.unique-identifiers"
+title = "Clones of one snapshot report different ANDROID_ID, RNG output and other device identifiers"
+milestone = "m3"
+scope = "Clone uniqueness"
+tags = ["adp", "snapshot", "security", "clone"]
+needs = ["contracts/adp#identity-report", "contracts/adp#Session.snapshot", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:contracts/adp#identity-report"
+
+[[scenario]]
+id = "clone.unique-keys"
+title = "Clones of one snapshot hold different keystore keys and renegotiate their network sessions"
+milestone = "m3"
+scope = "Clone uniqueness"
+tags = ["adp", "snapshot", "security", "clone"]
+needs = ["contracts/adp#identity-report", "contracts/adp#Session.snapshot", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:contracts/adp#identity-report"
+
+[[scenario]]
+id = "mcp.session-tools"
+title = "MCP session_reset and session_snapshot reset and snapshot the session"
+milestone = "m3"
+scope = "Session acquire/reset/release"
+tags = ["mcp", "session"]
+needs = ["contracts/adp#Session.reset", "contracts/adp#Session.snapshot", "clients/mcp", "host/entrypoints/adp_server", "guest/image"]
+expect = "red"
+reason = "missing:contracts/adp#Session.reset"
+
+# ---------------------------------------------------------------------------------------
+# M4: inspection complete (WebView, Flutter/RN, layers, exposure inside the guest)
+# ---------------------------------------------------------------------------------------
+
+[[scenario]]
+id = "webview.targets"
+title = "A WebView in the test app appears as a webview target and as a webview node with webviewTargetId in the unified tree"
+milestone = "m4"
+scope = "WebView CDP relay"
+tags = ["adp", "webview", "tree"]
+needs = ["contracts/adp#WebView.listTargets", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/webview"]
+expect = "red"
+reason = "missing:contracts/adp#WebView.listTargets"
+
+[[scenario]]
+id = "webview.cdp-relay"
+title = "A session attached to a webview target carries CDP unchanged: DOM.getDocument and Runtime.evaluate work"
+milestone = "m4"
+scope = "WebView CDP relay"
+tags = ["adp", "webview"]
+needs = ["contracts/adp#webview-session-envelope", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/webview"]
+expect = "red"
+reason = "missing:contracts/adp#webview-session-envelope"
+
+[[scenario]]
+id = "ui.tree.flutter"
+title = "Flutter semantics appear in the unified tree"
+milestone = "m4"
+scope = "Flutter / RN semantics"
+tags = ["adp", "tree"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/flutter"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "ui.tree.react-native"
+title = "React Native semantics appear in the unified tree"
+milestone = "m4"
+scope = "Flutter / RN semantics"
+tags = ["adp", "tree"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/rn"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "ui.tree.layers"
+title = "A custom-rendered surface with no view counterpart appears as a layer node"
+milestone = "m4"
+scope = "Layer tree (games, etc.)"
+tags = ["adp", "tree", "layer"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/gl"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "screen.capture.layer"
+title = "Screen.captureScreenshot of a layer returns only that layer's pixels"
+milestone = "m4"
+scope = "Layer tree (games, etc.)"
+tags = ["adp", "screen", "layer"]
+needs = ["contracts/adp#Target.createTarget", "contracts/adp#Screen.captureScreenshot", "host/entrypoints/adp_server", "guest/image", "testing/testapps/gl"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "security.guest.webview-debug"
+title = "Another app inside the guest cannot reach the WebView devtools sockets the debugging policy opens"
+milestone = "m4"
+scope = "WebView CDP relay"
+tags = ["adp", "security", "webview"]
+needs = ["contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/webview", "testing/testapps/exposure_probe"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "security.guest.inspector"
+title = "Another app inside the guest cannot call the inspector hooks or read inspection data"
+milestone = "m4"
+scope = "View tree"
+tags = ["adp", "security"]
+needs = ["contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/exposure_probe"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
+
+[[scenario]]
+id = "security.guest.agent"
+title = "Another app inside the guest cannot drive the agent's accessibility or node-action service"
+milestone = "m4"
+scope = "Accessibility tree"
+tags = ["adp", "security"]
+needs = ["contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/exposure_probe"]
+expect = "red"
+reason = "missing:host/entrypoints/adp_server"
