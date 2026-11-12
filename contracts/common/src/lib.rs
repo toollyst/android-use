@@ -39,12 +39,20 @@ pub enum ErrorCode {
     NotActionable,
     /// 시간 초과. (`TIMEOUT`)
     Timeout,
-    /// 정책이 거부했다. (`POLICY_DENIED`)
+    /// 정책이 거부했다. attach 때 `Authorizer`가 거부한 경우도 여기다. (`POLICY_DENIED`)
     PolicyDenied,
-    /// 인증되지 않았다. (`UNAUTHENTICATED`)
+    /// 자격 증명이 없거나 유효하지 않다. 인증 전에 온 메시지도 여기다. (`UNAUTHENTICATED`)
     Unauthenticated,
     /// 협상할 수 없는 프로토콜 버전이다. (`UNSUPPORTED_VERSION`)
     UnsupportedVersion,
+    /// 메시지 봉투가 잘못됐다: 형식 오류, 진행 중인 요청과 겹치는 `id`, `sessionId` 범위 위반,
+    /// 연결 상태가 허용하지 않는 메시지(인증 전은 `Unauthenticated`). (`INVALID_REQUEST`)
+    InvalidRequest,
+    /// 알 수 없는 메서드다. (`METHOD_NOT_FOUND`)
+    MethodNotFound,
+    /// 인자가 정의를 따르지 않는다: 필수 값 누락, 타입·열거값 불일치, 알 수 없는 union `kind`,
+    /// 셀렉터 문법 오류와 알 수 없는 셀렉터 엔진, 알 수 없는 diff 형식. (`INVALID_PARAMS`)
+    InvalidParams,
 }
 
 /// 계약 trait들이 돌려주는 에러.
