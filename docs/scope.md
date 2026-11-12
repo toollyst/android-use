@@ -7,7 +7,7 @@
 ## 1. Platform and execution
 | Feature | Contract | guest | vmm / devices | runtime | services | entrypoints · clients | Stage |
 |---|---|---|---|---|---|---|---|
-| Android 부팅 (boot.img/vendor_boot/bootconfig) | machine | ☐ products, fstab, init | ☐ host/vmm/boot | ☐ instance | — | ☐ cli | M1 |
+| Android boot (boot.img/vendor_boot/bootconfig) | machine | ☐ products, fstab, init | ☐ host/vmm/boot | ☐ instance | — | ☐ cli | M1 |
 | GPT composite disk + CoW layers | machine | ☐ fstab | ☐ host/vmm/disk | ☐ stores | — | — | M1 |
 | AVB · SELinux enforcing · user build | — | ☐ avb, sepolicy | — | — | — | — | M1 |
 | Screen output (gfxstream) | device | ☐ hals/graphics | ☐ host/devices/gpu, vhost-user, shm | ☐ instance | — | — | M1 |
@@ -23,7 +23,7 @@
 ## 2. Inspection (ADP)
 | Feature | Contract | guest | vmm / devices | runtime | services | entrypoints · clients | Stage |
 |---|---|---|---|---|---|---|---|
-| View 트리 | guest_link, adp | ☐ patch 0001 + inspector | — | ☐ GuestChannel | ☐ inspect | ☐ adp, mcp | M2 |
+| View tree | guest_link, adp | ☐ patch 0001 + inspector | — | ☐ GuestChannel | ☐ inspect | ☐ adp, mcp | M2 |
 | Accessibility tree | guest_link, adp | ☐ agent | — | — | ☐ inspect | ☐ adp | M2 |
 | Compose semantics | guest_link, adp | ☐ inspector | — | — | ☐ inspect | ☐ adp | M2 |
 | Unified tree merge | adp | — | — | — | ☐ inspect | ☐ adp | M2 |

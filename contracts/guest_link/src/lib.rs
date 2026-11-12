@@ -17,7 +17,6 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-// Applies only to the generated code.
 mod generated {
     include!("generated/droiduse.guest_link.rs");
 }
@@ -30,6 +29,9 @@ pub const TRACEPARENT_METADATA_KEY: &str = "traceparent";
 /// gRPC metadata key: W3C Trace Context `tracestate`. Any call can carry it.
 pub const TRACESTATE_METADATA_KEY: &str = "tracestate";
 
-/// gRPC metadata key: session token (opaque secret, binary metadata). Every RPC except
-/// `HelloService.Hello` and `AuthService.Auth` carries it, in both directions.
+/// gRPC metadata key: session token (opaque secret, binary metadata). Every call on both
+/// channels carries it, `HelloService.Hello` included; it is the authentication, and a missing
+/// or wrong token is gRPC `UNAUTHENTICATED`. The first token reaches the guest on the secret
+/// disk; `AuthService.Rebind` rotates it after every restore (its call carries the previous
+/// token).
 pub const SESSION_TOKEN_METADATA_KEY: &str = "droiduse-session-token-bin";
