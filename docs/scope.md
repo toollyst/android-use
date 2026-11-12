@@ -64,8 +64,8 @@
 ## 5. Operations and extension
 | Feature | Contract | guest | vmm / devices | runtime | services | entrypoints · clients | Stage |
 |---|---|---|---|---|---|---|---|
-| Single trace (Perfetto) | headers of every contract | ☐ adpd propagation | ☐ | ☐ | ☐ | ☐ | M0 |
-| Channel authentication | spi | ☐ guest_link · keymint tokens | — | ☐ | — | ☐ adp_server, node | M1 |
+| Single trace (Perfetto) | headers of every contract | ☐ adpd propagation | ◐ | ◐ | ☐ | ◐ | M0 |
+| Channel authentication | spi | ☐ guest_link · keymint tokens | — | ◐ auth | — | ◐ adp_server · ☐ node | M1 |
 | Re-authentication after cloning | guest_link, keymint | ☐ adpd, services/restore | — | ☐ identity | — | — | M3 |
 | Resource accounting events | spi | — | — | ☐ resources | — | ☐ node | after v1 |
 | Node API | node | — | — | ☐ | — | ☐ node | after v1 |
