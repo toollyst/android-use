@@ -1,31 +1,31 @@
-# 12. 빌드·테스트 인프라
+# 12. Build and test infrastructure
 
-## 1. 장비
-| 장비 | 역할 |
+## 1. Machines
+| Machine | Role |
 |---|---|
-| **GCE 빌드 서버** (n2-standard-96 **Spot**, 서울 + Local SSD) | AOSP·커널·호스트 빌드, CTS shard. `out/`은 Local SSD, 소스 캐시는 persistent disk, ccache 사용. 빌드할 때만 켠다 |
-| **GCE C4A bare metal** (예: `c4a-highmem-96-metal`, Axion arm64) | (도쿄) Linux arm64(KVM 네이티브) **게이트 검증**과 밀도·성능 지표 측정. **게이트 검증할 때만 켠다** |
-| **GCE x86** (Intel VM nested 또는 bare metal) | x86_64 게스트 부팅 테스트, 성능 지표는 bare metal |
-| **로컬 Windows PC → Linux 듀얼부팅** (별도 SSD 권장) | 네이티브 GPU 드라이버 + bare metal KVM으로 **gfxstream 호스트 GPU 경로(Linux) 검증**. GCE에서 GPU+KVM 조합이 어려운 부분을 메움 |
-| 같은 PC의 **Windows** | wick Windows(WHP) 첫 부팅 이후 네이티브 Windows 검증 장비 |
-| **Mac (Apple silicon, macOS 15+)** | **평소 arm64 게스트 부팅·테스트 반복(HVF)**, Metal(MoltenVK), seatbelt, Secure Enclave, 게이트·v1 릴리스 검증. GCE에 Mac 인스턴스는 없음 |
+| **GCE build server** (n2-standard-96 **Spot**, Seoul + Local SSD) | AOSP, kernel and host builds, CTS shards. `out/` on Local SSD, source cache on a persistent disk, ccache. Turned on only to build |
+| **GCE C4A bare metal** (e.g. `c4a-highmem-96-metal`, Axion arm64) | (Tokyo) Linux arm64 (native KVM) **gate verification** and density and performance metrics. **Turned on only for gate verification** |
+| **GCE x86** (Intel VM nested or bare metal) | x86_64 guest boot tests; performance metrics on bare metal |
+| **Local Windows PC → Linux dual boot** (a separate SSD recommended) | **Verifying the gfxstream host GPU path (Linux)** with a native GPU driver + bare metal KVM. Covers the part where the GPU+KVM combination is hard on GCE |
+| **Windows** on the same PC | Native Windows verification machine once wick boots on Windows (WHP) for the first time |
+| **Mac (Apple silicon, macOS 15+)** | **Everyday arm64 guest boot and test iterations (HVF)**, Metal (MoltenVK), seatbelt, Secure Enclave, gate and v1 release verification. GCE has no Mac instances |
 
-## 2. 주의
-- **WSL2는 보조용**: KVM은 nested로 되지만, GPU가 DirectX 반가상화 + Vulkan-on-D3D12 변환 레이어를 거치므로 gfxstream 검증에 부적합하다. 상용 타깃 어디에도 해당하지 않는다.
-- **GCE의 GPU + KVM 조합**은 머신 시리즈별로 확인이 필요하다. 안 되면 GPU 경로는 로컬 Linux PC와 Mac에서 검증한다.
-- **비용**: 빌드 서버는 Spot으로 빌드할 때만, C4A bare metal은 게이트 검증할 때만 켠다. CI가 필요할 때 띄우고 끝나면 내린다. CTS shard는 Spot VM. 비용 기준은 `docs/13-roadmap.md` §4.
+## 2. Caveats
+- **WSL2 is auxiliary only**: KVM works nested, but the GPU goes through DirectX paravirtualization + a Vulkan-on-D3D12 translation layer, which makes it unsuitable for gfxstream verification. It is not one of the production targets.
+- **The GPU + KVM combination on GCE** has to be checked per machine series. If it does not work, the GPU path is verified on the local Linux PC and the Mac.
+- **Cost**: the build server is Spot and on only while building; C4A bare metal is on only for gate verification. CI brings machines up when needed and takes them down when done. CTS shards run on Spot VMs. The cost baseline is `docs/13-roadmap.md` §4.
 
-## 3. M0에 필요한 인프라
-1. 빌드 서버 생성 → AOSP 릴리스 태그 `repo sync` 시작 (수 시간 소요, 가장 먼저)
-2. C4A bare metal에 wick Linux 빌드 + 부팅 테스트 하네스 (`tools/infra/boot-test.sh`)
-3. 이미지 캐시 버킷과 CI 러너 등록
-4. (M5용) 로컬 PC Linux 듀얼부팅 + GPU 드라이버 + KVM 확인
+## 3. Infrastructure needed for M0
+1. Create the build server → start `repo sync` of the AOSP release tag (takes hours; first of all)
+2. wick Linux build + boot test harness on C4A bare metal (`tools/infra/boot-test.sh`)
+3. Image cache bucket and CI runner registration
+4. (for M5) Local PC Linux dual boot + GPU driver + KVM check
 
 ## 4. tools/infra
 ```
 tools/infra/
-├─ gce/            인스턴스 생성·삭제 스크립트 (빌드 서버, C4A, x86)
-├─ boot-test.sh    이미지 → wick 부팅 → boot_completed → guest_link Hello 확인
-├─ cts.sh          CTS shard 실행·결과 수집
-└─ runners/        self-hosted CI 러너 설정
+├─ gce/            instance create/delete scripts (build server, C4A, x86)
+├─ boot-test.sh    image → wick boot → boot_completed → check guest_link Hello
+├─ cts.sh          run CTS shards and collect results
+└─ runners/        self-hosted CI runner configuration
 ```
