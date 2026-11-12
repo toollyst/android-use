@@ -620,9 +620,15 @@ fn overrun_owners_setting() {
 
 #[test]
 fn owners_placeholder_never_validates() {
-    // The real OWNERS lists only `<owner>` placeholders.
+    // An OWNERS that still lists `<owner>` placeholders approves no one.
+    let fx = Fx::new();
+    fx.file(
+        "OWNERS",
+        "*                       <owner>\nthird_party/**/patches  <owner>\n",
+    );
     for who in ["owner", "<owner>"] {
-        let r = lint(&overrun_approved_by(who));
+        fx.wick(&overrun_approved_by(who));
+        let r = fx.run();
         assert!(
             ids(&r).contains(&"patch/budget-overrun"),
             "{who}: {}",
@@ -633,6 +639,24 @@ fn owners_placeholder_never_validates() {
     let r = lint(&with_extra("Budget-approved-by: <owner>"));
     assert_rules(&r, &["patch/header-invalid"]);
     assert_message(&r, "`Budget-approved-by:`");
+}
+
+#[test]
+fn real_owners_names_a_login_that_approves_patches() {
+    // The real OWNERS (copied by Fx::new) parses, and its patch owner can approve an overrun.
+    let text = fs::read_to_string(repo_root().join("OWNERS")).unwrap();
+    let owner = text
+        .lines()
+        .find(|l| l.starts_with("third_party/**/patches"))
+        .and_then(|l| l.split_whitespace().nth(1))
+        .expect("OWNERS: a third_party/**/patches rule");
+    assert!(patchlint::owners::user_login(owner).is_some(), "{owner}");
+    let fx = Fx::new();
+    fx.wick(&overrun_approved_by(owner));
+    assert_clean(&fx.run());
+    // and someone else cannot
+    fx.wick(&overrun_approved_by("not-an-owner"));
+    assert_rules(&fx.run(), &["patch/budget-overrun"]);
 }
 
 #[test]
