@@ -5,14 +5,14 @@ runtime은 vmm, devices, 게스트 이미지를 **`Instance` 하나로 조립**�
 ## 1. 모듈
 | 모듈 | 책임 |
 |---|---|
-| `runtime/instance` | `VmSpec` 생성(게스트 bootconfig `androidboot.*` 포함), 디바이스 백엔드 프로세스 기동·연결, `Instance` 구현, 상태 머신, 프레임 매칭(`FrameChannel`) |
-| `runtime/session` | 세션 풀, acquire/reset/release, 동시성·용량 관리 |
-| `runtime/snapshot` | 골든 스냅샷 생성, restore, uffd 페이지 핸들러(`MemorySource` 사용), 스냅샷 메타데이터 |
-| `runtime/identity` | VMGenID 증가, `DeviceProfile` 적용, 게스트 `Restore.Notify` 대기·검증 |
-| `runtime/keymint` | 호스트 KeyMint TA (AOSP Rust kmr). 별도 프로세스, jail 안에서 실행. 키는 호스트 보안 저장소(Secure Enclave / TPM)로 래핑. 인스턴스별 비밀 |
-| `runtime/jail` | 플랫폼별 샌드박스: Linux jailer / macOS seatbelt / Windows AppContainer. VMM, **각 디바이스 프로세스**, keymint마다 별도 적용 |
-| `runtime/resources` | 인스턴스별 CPU·메모리·디스크·네트워크 사용량 회계, 한도 적용, 이벤트 발행 |
-| `runtime/stores` | SPI 기본 구현: 로컬 `SnapshotStore`, `ImageStore`, `ProfileStore`, 파일 `MemorySource` |
+| `host/runtime/instance` | `VmSpec` 생성(게스트 bootconfig `androidboot.*` 포함), 디바이스 백엔드 프로세스 기동·연결, `Instance` 구현, 상태 머신, 프레임 매칭(`FrameChannel`) |
+| `host/runtime/session` | 세션 풀, acquire/reset/release, 동시성·용량 관리 |
+| `host/runtime/snapshot` | 골든 스냅샷 생성, restore, uffd 페이지 핸들러(`MemorySource` 사용), 스냅샷 메타데이터 |
+| `host/runtime/identity` | VMGenID 증가, `DeviceProfile` 적용, 게스트 `Restore.Notify` 대기·검증 |
+| `host/runtime/keymint` | 호스트 KeyMint TA (AOSP Rust kmr). 별도 프로세스, jail 안에서 실행. 키는 호스트 보안 저장소(Secure Enclave / TPM)로 래핑. 인스턴스별 비밀 |
+| `host/runtime/jail` | 플랫폼별 샌드박스: Linux jailer / macOS seatbelt / Windows AppContainer. VMM, **각 디바이스 프로세스**, keymint마다 별도 적용 |
+| `host/runtime/resources` | 인스턴스별 CPU·메모리·디스크·네트워크 사용량 회계, 한도 적용, 이벤트 발행 |
+| `host/runtime/stores` | SPI 기본 구현: 로컬 `SnapshotStore`, `ImageStore`, `ProfileStore`, 파일 `MemorySource` |
 
 ## 2. 인스턴스 상태 머신
 ```

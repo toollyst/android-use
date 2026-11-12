@@ -1,4 +1,4 @@
-# vmm/ (L2)
+# host/vmm/ (L2)
 
 wick 위에 얹는 VMM 확장 crate들. **Android 의미를 모른다.** 상세: `docs/05-vmm-and-devices.md`
 

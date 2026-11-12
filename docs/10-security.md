@@ -9,9 +9,9 @@
 | 대상 | 방법 |
 |---|---|
 | 게스트 ↔ 호스트 | microVM (KVM / HVF / WHP) |
-| VMM 프로세스 | `runtime/jail`: Linux jailer, macOS seatbelt/App Sandbox, Windows AppContainer |
+| VMM 프로세스 | `host/runtime/jail`: Linux jailer, macOS seatbelt/App Sandbox, Windows AppContainer |
 | 디바이스 백엔드 | **각각 별도 프로세스, 각각 최소 권한 샌드박스.** 공격면이 가장 큰 gpu는 가장 강하게 |
-| 호스트 KeyMint | 별도 프로세스, 전용 샌드박스, 호스트 보안 저장소 외 접근 없음 (`runtime/keymint`) |
+| 호스트 KeyMint | 별도 프로세스, 전용 샌드박스, 호스트 보안 저장소 외 접근 없음 (`host/runtime/keymint`) |
 | 세션 ↔ 세션 | 인스턴스별 프로세스 집합, 별도 디스크 CoW 레이어, 별도 토큰 |
 | 네트워크 | usernet 기본 차단 + allowlist 정책, 세션별 egress 로깅 |
 
@@ -19,7 +19,7 @@
 - user 빌드, adbd 기본 off (호스트 인가로만 활성, CTS/VTS 전용)
 - AVB 자체 키, rollback index
 - SELinux enforcing, 신규 컴포넌트마다 전용 도메인
-- KeyMint는 호스트(`runtime/keymint`, 별도 jailed 프로세스)에서 실행, 키는 호스트 보안 저장소로 래핑 (Secure Enclave / TPM)
+- KeyMint는 호스트(`host/runtime/keymint`, 별도 jailed 프로세스)에서 실행, 키는 호스트 보안 저장소로 래핑 (Secure Enclave / TPM)
 - 복제 고유성: VMGenID + restore hook (`docs/07-runtime.md` §4)
 
 ## 4. 채널 보안
@@ -34,7 +34,7 @@
 
 ## 5. fuzzing (CI 상시)
 - virtio 큐 파서 (모든 devices)
-- `vmm/boot` 이미지 파서, `vmm/disk` GPT/레이어 파서
+- `host/vmm/boot` 이미지 파서, `host/vmm/disk` GPT/레이어 파서
 - usernet 패킷 처리
 - guest_link 디코더, keymint 프레이밍 디코더, ADP 디코더
 - 스냅샷 메타데이터 파서

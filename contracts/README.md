@@ -7,9 +7,9 @@
 | `machine/` | runtime ↔ vmm | Rust trait |
 | `device/` | vmm ↔ devices | vhost-user + 확장 |
 | `guest_link/` | runtime·services ↔ guest | IDL → codegen |
-| `keymint/` | guest KeyMint HAL ↔ runtime/keymint | AOSP kmr wire + 프레이밍·인증 |
+| `keymint/` | guest KeyMint HAL ↔ host/runtime/keymint | AOSP kmr wire + 프레이밍·인증 |
 | `instance/` | services ↔ runtime | Rust trait |
-| `adp/` | embedders ↔ 외부 | JSON-RPC 스키마 (`docs/04-adp.md`) |
+| `adp/` | host/entrypoints/adp_server ↔ clients·외부 클라이언트 | JSON-RPC 스키마 (`docs/04-adp.md`) |
 | `node/` | control plane ↔ node | IDL(gRPC) |
 | `spi/` | 코어 ↔ 확장 구현 | Rust trait (`docs/09-oss-and-saas.md`) |
 | `codegen/` | 생성기 설정 | - |

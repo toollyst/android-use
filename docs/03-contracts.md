@@ -4,6 +4,7 @@
 
 ## 공통 규칙
 - 모든 계약은 `contracts/<name>/`에 스키마/트레이트로 존재하고 `VERSION`(semver)을 가진다.
+- contracts는 다른 레이어에 의존하지 않는다. 공통 타입(에러 코드, trace ID 등)도 contracts 안에 둔다.
 - 하위호환을 깨는 변경은 major 증가 + `contracts/compat/` 픽스처 + 마이그레이션 문서가 필요하다.
 - 변경 PR에는 양쪽 레이어 OWNERS 승인이 필요하다.
 - 직렬화 계약(guest_link, adp, node)은 `build/codegen`으로 Rust / Kotlin·Java / C++ / TypeScript / Python 코드를 생성한다.
@@ -15,9 +16,9 @@
 | `machine` | runtime ↔ vmm | Rust trait + 확장 REST API | in-process / unix socket |
 | `device` | vmm ↔ devices | vhost-user 표준 + 확장 | unix socket + shm |
 | `guest_link` | runtime·services ↔ guest | IDL → codegen | vsock |
-| `keymint` | guest KeyMint HAL ↔ runtime/keymint | AOSP kmr wire 페이로드 + 우리 프레이밍·인증 | 전용 vsock 포트 |
+| `keymint` | guest KeyMint HAL ↔ host/runtime/keymint | AOSP kmr wire 페이로드 + 우리 프레이밍·인증 | 전용 vsock 포트 |
 | `instance` | services ↔ runtime | Rust trait | in-process |
-| `adp` | embedders ↔ 외부 클라이언트 | CDP 스타일 JSON-RPC 스키마 | WebSocket |
+| `adp` | host/entrypoints/adp_server ↔ clients·외부 클라이언트 | CDP 스타일 JSON-RPC 스키마 | WebSocket |
 | `node` | control plane ↔ node 데몬 | IDL(gRPC) | TLS |
 | `spi` | 코어 ↔ 확장 구현체 | Rust trait (+ 일부 gRPC 훅) | in-process / gRPC |
 
@@ -32,7 +33,7 @@ struct VmSpec {
     cpu_template: CpuTemplateRef,          // 스냅샷 이식성을 위해 필수
     boot: BootSpec,                        // Linux{kernel,initrd,cmdline} | BootImageV4{boot,vendor_boot,bootconfig}
                                            // bootconfig는 불투명 key=value 목록. vmm은 내용을 해석하지 않는다
-                                           // (androidboot.* 값은 runtime/instance가 만든다)
+                                           // (androidboot.* 값은 host/runtime/instance가 만든다)
     disks: Vec<CompositeDiskSpec>,         // GPT + CoW 레이어(base ro / snapshot / profile)
     vsock: VsockSpec,
     net: Vec<NetSpec>,                     // vhost-user-net 백엔드 소켓
@@ -57,15 +58,15 @@ trait Machine {
     fn events(&self) -> EventStream<VmEvent>;
 }
 ```
-- VMM은 jail 안의 별도 프로세스다. runtime 쪽 구현은 `vmm/api`의 REST 클라이언트가 이 trait을 구현한다 (in-process 구현은 테스트용).
+- VMM은 jail 안의 별도 프로세스다. runtime 쪽 구현은 `host/vmm/api`의 REST 클라이언트가 이 trait을 구현한다 (in-process 구현은 테스트용).
 
 ## device
 - 기본은 **vhost-user 표준 프로토콜**이다. 디바이스는 vhost-user 백엔드로 구현한다.
 - 확장:
   - `SET_DEVICE_STATE_FD` 계열 device state 전송 (스냅샷에 디바이스 상태 포함)
   - virtio shared memory region (gfxstream blob resource용)
-  - **scanout export** (gpu 전용): 현재 scanout 버퍼의 shm fd + 프레임 커밋 알림 (virtio 수준 식별자 포함). `runtime/instance`가 받아 `FrameChannel`로 내보낸다.
-- devices는 Android를 모른다. 프레임 메타데이터에 게스트 frameId를 넣지 않는다(그건 guest_link로 온다). 두 쪽은 `runtime/instance`의 `FrameChannel`이 virtio 수준 식별자로 **정확히** 매칭한다. 추정 매칭은 하지 않는다.
+  - **scanout export** (gpu 전용): 현재 scanout 버퍼의 shm fd + 프레임 커밋 알림 (virtio 수준 식별자 포함). `host/runtime/instance`가 받아 `FrameChannel`로 내보낸다.
+- devices는 Android를 모른다. 프레임 메타데이터에 게스트 frameId를 넣지 않는다(그건 guest_link로 온다). 두 쪽은 `host/runtime/instance`의 `FrameChannel`이 virtio 수준 식별자로 **정확히** 매칭한다. 추정 매칭은 하지 않는다.
 
 ## guest_link
 호스트와 게스트(adpd) 사이의 vsock 프로토콜.
@@ -83,7 +84,7 @@ Inspect.Node      { node_id } → Node
 // 프레임
 Frame.Committed   ← { frame_id{display, vsync_id, sf_frame}, scanout_ref, ts_ns, layers[] }  // 이벤트. scanout_ref = 매칭용 virtio 식별자
 
-// 액션 (노드 기반, 좌표 입력은 devices/input 경유)
+// 액션 (노드 기반, 좌표 입력은 host/devices/input 경유)
 Action.Perform    { node_id, action, args } → ActionResult
 
 // 앱·시스템
@@ -102,7 +103,7 @@ Restore.Notify    ← { generation, completed_steps[] }   // VMGenID 변경 후 
 - KeyMint HAL 채널은 guest_link와 **분리된 전용 vsock 포트**를 쓰며 계약은 `keymint`다 (아래).
 
 ## keymint
-게스트 KeyMint HAL과 호스트 `runtime/keymint` 사이 채널.
+게스트 KeyMint HAL과 호스트 `host/runtime/keymint` 사이 채널.
 - 페이로드는 고정 AOSP 태그의 kmr wire 형식을 그대로 쓰고, 프레이밍·인증만 우리가 정의한다.
 - restore 후 재인증은 guest_link와 같다.
 
@@ -115,8 +116,8 @@ trait Instance {
     fn state(&self) -> InstanceState;          // Creating | Booting | Ready | Paused | Restoring | Stopped | Failed
     fn guest(&self) -> &dyn GuestChannel;      // guest_link 클라이언트
     fn frames(&self) -> &dyn FrameChannel;     // frameId가 매칭된 scanout 프레임
-    fn input(&self) -> &dyn InputChannel;      // devices/input 이벤트 주입
-    fn net(&self) -> &dyn NetObserver;         // devices/net 플로우 관찰·정책 적용
+    fn input(&self) -> &dyn InputChannel;      // host/devices/input 이벤트 주입
+    fn net(&self) -> &dyn NetObserver;         // host/devices/net 플로우 관찰·정책 적용
     fn events(&self) -> EventStream<InstanceEvent>;
 }
 

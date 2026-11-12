@@ -1,4 +1,4 @@
 [layer]
-name = "embedders"
+name = "entrypoints"
 allow = ["base", "contracts", "runtime", "services"]
 forbid_concepts = ["tenant", "billing"]

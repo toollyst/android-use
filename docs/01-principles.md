@@ -18,12 +18,12 @@
 - 계약은 semver, 하위호환 테스트, 양쪽 OWNERS 승인.
 
 ## P4. 하위 레이어는 상위 개념을 모른다
-- `vmm/`, `devices/`는 Android를 모른다. 범용 virtio만 다뤄서 범용 샌드박스로 재사용할 수 있게 한다.
+- `host/vmm/`, `host/devices/`는 Android를 모른다. 범용 virtio만 다뤄서 범용 샌드박스로 재사용할 수 있게 한다.
 - 코어는 테넌트, 과금을 모른다. `labels`와 SPI로 확장한다.
 
 ## P5. 디바이스는 별도 프로세스
 - gpu, input, snd, net은 vhost-user 백엔드로 분리하고 각각 샌드박스에서 돌린다.
-- 호스트 KeyMint도 별도 프로세스·별도 샌드박스로 돌린다 (`runtime/keymint`).
+- 호스트 KeyMint도 별도 프로세스·별도 샌드박스로 돌린다 (`host/runtime/keymint`).
 
 ## P6. 상용 품질이 기본
 - user 빌드(adbd 기본 off, 호스트 인가로만 활성), AVB, SELinux enforcing

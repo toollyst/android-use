@@ -1,4 +1,4 @@
-# services/ (L5)
+# host/services/ (L5)
 
 도메인별 기능. 각 서비스가 자기 도메인을 끝까지 책임진다. 형제 서비스끼리 직접 의존 금지(`contracts/instance` 채널 경유).
 

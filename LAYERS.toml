@@ -2,55 +2,73 @@
 # 규칙:
 #  1) 상위 레벨 → 하위 레벨로만 의존 가능
 #  2) 같은 레벨의 형제 디렉터리끼리 직접 의존 금지 (contracts 경유)
-#  3) contracts는 모든 레이어가 의존 가능, contracts는 base 외에 의존 금지
+#  3) contracts는 모든 레이어가 의존 가능하고, contracts 자신은 어디에도 의존하지 않는다 (자기완결)
 #  4) 디렉터리별 세부 허용 목록은 각 디렉터리의 LAYER.toml에서 좁힐 수 있음 (넓힐 수 없음)
+#  5) clients는 contracts에만 의존한다. 어떤 제품 코드도 clients에 의존하지 않는다
+# path = 레포 루트 기준 실제 위치
 
 [[layer]]
 name  = "third_party"
+path  = "third_party"
 level = 0
 
 [[layer]]
-name  = "base"
-level = 1
-
-[[layer]]
 name  = "contracts"
-level = 1          # 특수: 모든 레이어에서 참조 가능
+path  = "contracts"
+level = 1          # 특수: 모든 레이어에서 참조 가능, 자신은 의존 0
 special = "contracts"
 
 [[layer]]
+name  = "base"
+path  = "host/base"
+level = 1
+
+[[layer]]
 name  = "vmm"
+path  = "host/vmm"
 level = 2
 
 [[layer]]
 name  = "devices"
+path  = "host/devices"
 level = 2
 
 [[layer]]
 name  = "guest"
+path  = "guest"
 level = 3          # AOSP 빌드 트리로 들어감. Soong visibility로도 강제
 
 [[layer]]
 name  = "runtime"
+path  = "host/runtime"
 level = 4
 
 [[layer]]
 name  = "services"
+path  = "host/services"
 level = 5
 
 [[layer]]
-name  = "embedders"
+name  = "entrypoints"
+path  = "host/entrypoints"
 level = 6
 
 [[layer]]
+name  = "clients"
+path  = "clients"
+level = 6          # entrypoints와 형제: 서로 의존 금지. ADP(contracts/adp)로만 호스트와 통신
+special = "clients"
+
+[[layer]]
 name  = "testing"
+path  = "testing"
 level = 7          # 모든 레이어를 테스트 목적으로 참조 가능, 제품 코드가 testing에 의존 금지
 
 [forbidden]
 # 개념 수준 금지 규칙 (lint로 검사)
 # 검사 대상: 식별자, 문자열 리터럴, 파일·디렉터리 이름, 의존 crate 이름 (대소문자 무시, 단어 단위)
 # 검사 제외: 주석과 문서(*.md). 개념을 "설명"하는 것은 허용하고 코드가 그 개념을 "다루는" 것을 막는다.
-# 예: vmm/boot는 boot image v4 "컨테이너 포맷"만 다룬다. androidboot.* 값은 runtime이 만들어 불투명 bootconfig로 넘긴다.
+# 예: host/vmm/boot는 boot image v4 "컨테이너 포맷"만 다룬다. androidboot.* 값은 runtime이 만들어 불투명 bootconfig로 넘긴다.
 "vmm"     = ["android", "aosp", "package_name", "activity"]
 "devices" = ["android", "aosp", "package_name", "activity"]
 "*"       = ["qemu", "tenant", "billing"]   # 코어 전체 금지어 (주석/문서 예외)

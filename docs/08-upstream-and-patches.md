@@ -2,7 +2,7 @@
 
 ## 1. 세 축
 ```
-Firecracker tag ─(wick patches: wick 소관)─▶ wick ─(third_party/wick/patches)─▶ + vmm/ ext ─▶ VMM
+Firecracker tag ─(wick patches: wick 소관)─▶ wick ─(third_party/wick/patches)─▶ + host/vmm/ ext ─▶ VMM
 AOSP release tag ─(third_party/aosp/patches + security/)─▶ + guest/vendor overlay ─▶ 게스트 이미지
 GKI prebuilt ─(guest/kernel/fragments + modules)─────────────────────────────────▶ 커널 + vendor 모듈
 ```

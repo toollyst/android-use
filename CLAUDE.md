@@ -18,7 +18,7 @@
 1. **QEMU 금지.** QEMU 코드, 바이너리, 런타임 의존을 어떤 형태로도 들이지 않는다.
 2. **우회 금지.** "일단 되게" 하는 임시 경로(AVB 끄기, SELinux permissive, adb 의존 제어, 소프트웨어 렌더링 고정 등)를 기본 경로로 만들지 않는다. 디버그 전용이면 `debug` 빌드 플래그 뒤에 두고 문서에 명시한다.
 3. **레이어 의존은 위에서 아래로만.** 같은 레이어의 형제 모듈끼리는 직접 의존하지 않는다. 경계는 `contracts/`로만 넘는다. (`LAYERS.toml`, `build/checklayers`)
-4. **`vmm/`와 `devices/`는 Android를 모른다.** Android 개념(패키지, Activity, View 등)이 L2에 들어오면 위반이다.
+4. **`host/vmm/`와 `host/devices/`는 Android를 모른다.** Android 개념(패키지, Activity, View 등)이 L2에 들어오면 위반이다.
 5. **코어는 테넌트를 모른다.** 테넌트, 과금, 플랜 같은 개념은 코어에 없다. 필요하면 `labels`(불투명 map)와 SPI로 해결한다. SaaS 코드는 이 레포에 넣지 않는다.
 6. **모든 채널은 인증한다.** "localhost라서 신뢰"를 가정하지 않는다.
 7. **upstream 코드는 직접 수정하지 않는다.** `third_party/<x>/patches/`의 패치로만 바꾸고, 패치에는 hook 지점만 넣는다. 로직은 우리 레이어(ext/overlay)에 둔다.
@@ -29,13 +29,14 @@ upstream 동작을 바꿔야 하나?
  ├─ 예 → hook 지점만 third_party/<x>/patches/ 에 (예산·헤더 규칙 준수)
  │        └─ 실제 로직은 아래 중 하나에
  └─ 아니오 ↓
-VM/virtio 디바이스 수준인가?          → vmm/ 또는 devices/   (Android 지식 금지)
+VM/virtio 디바이스 수준인가?          → host/vmm/ 또는 host/devices/   (Android 지식 금지)
 게스트(Android) 안에서 돌아가나?      → guest/
-인스턴스 조립·수명주기·스냅샷인가?    → runtime/
-도메인 기능(트리, 화면, 입력, 앱…)인가? → services/<domain>/
-외부 노출 형태(프로토콜, CLI, SDK)인가? → embedders/
+인스턴스 조립·수명주기·스냅샷인가?    → host/runtime/
+도메인 기능(트리, 화면, 입력, 앱…)인가? → host/services/<domain>/
+호스트 실행 진입점(ADP 서버, node, CLI, desktop)인가? → host/entrypoints/
+ADP 클라이언트(MCP, SDK)인가?          → clients/   (contracts/adp만 의존)
 여러 레이어가 공유하는 인터페이스인가? → contracts/
-도메인 지식 없는 공통 유틸인가?       → base/
+도메인 지식 없는 공통 유틸인가?       → host/base/
 ```
 두 곳 이상이 맞아 보이면 계약이 빠진 것이다. 계약부터 제안한다.
 
@@ -71,7 +72,7 @@ testing/e2e/run.sh <target>     # 영향 범위 E2E
 게스트 변경은 `tools/sync/aosp-sync.sh` → AOSP 빌드 → `tools/infra/boot-test.sh`까지 확인한다.
 
 ## 7. 커밋 / PR
-- 커밋 제목: `<layer>/<module>: <요약>` (예: `services/inspect: merge compose semantics into unified tree`)
+- 커밋 제목: `<layer>/<module>: <요약>` (예: `host/services/inspect: merge compose semantics into unified tree`)
 - 계약 변경 PR과 구현 PR은 분리한다.
 - PR 본문: 바뀐 `scope.md` 칸, 영향 레이어, 검증 결과, 트레이스 스크린샷(성능 관련 시).
 

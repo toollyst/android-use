@@ -57,8 +57,8 @@ vendor/droiduse/
 ```
 
 ## 5. 부팅 경로
-1. `runtime/instance`가 `androidboot.*` 값(하드웨어 이름, 슬롯, verifiedbootstate 등)을 만들어 `VmSpec.boot.bootconfig`로 넘기고, `vmm/boot`가 boot.img v4 + vendor_boot를 읽어 kernel, ramdisk(+vendor ramdisk)를 구성하고 bootconfig를 그대로 부착
-2. first-stage init이 ramdisk의 fstab으로 `super`의 logical 파티션을 dm-linear로 마운트 (`vmm/disk`의 GPT 이름 → `/dev/block/by-name`)
+1. `host/runtime/instance`가 `androidboot.*` 값(하드웨어 이름, 슬롯, verifiedbootstate 등)을 만들어 `VmSpec.boot.bootconfig`로 넘기고, `host/vmm/boot`가 boot.img v4 + vendor_boot를 읽어 kernel, ramdisk(+vendor ramdisk)를 구성하고 bootconfig를 그대로 부착
+2. first-stage init이 ramdisk의 fstab으로 `super`의 logical 파티션을 dm-linear로 마운트 (`host/vmm/disk`의 GPT 이름 → `/dev/block/by-name`)
 3. AVB: 자체 키로 vbmeta 체인 검증, rollback index
 4. second-stage init → vendor 모듈 로드(virtio-blk/net/vsock/gpu/input/snd/pci, vmgenid)
 5. `adpd`, `agent`, `restore` 시작 → `guest_link` Hello

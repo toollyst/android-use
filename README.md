@@ -16,6 +16,22 @@
 2. **CDP급 인스펙션**: View · 접근성 · Compose · WebView(CDP) · 렌더 레이어를 하나의 트리로 합치고, 프레임 동기화와 안정적인 노드 ID를 보장
 3. **크로스플랫폼 로컬 실행**: 같은 바이너리, 같은 API
 
+## 레포 구조
+```
+host/            호스트 코드 (위 → 아래 = 레이어 순서)
+  entrypoints/   L6  ADP 서버 · node 데몬 · CLI · desktop
+  services/      L5  도메인 기능 (트리 · 화면 · 입력 · 앱 · 네트워크 …)
+  runtime/       L4  VM·디바이스·게스트를 인스턴스로 조립, 수명주기·스냅샷
+  vmm/ devices/  L2  microVM · virtio 디바이스 (Android 모름)
+  base/          L1  공통 유틸
+guest/           L3  게스트 Android (AOSP overlay · HAL · 게스트 서비스)
+clients/             ADP 클라이언트 (MCP · SDK)
+contracts/           레이어 경계 계약 (의존 0)
+third_party/     L0  upstream + 패치
+testing/ build/ tools/ docs/
+```
+자세한 구조와 의존 규칙: [docs/02-architecture.md](docs/02-architecture.md)
+
 ## 문서 지도
 | 문서 | 내용 |
 |---|---|

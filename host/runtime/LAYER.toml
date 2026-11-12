@@ -2,5 +2,5 @@
 name = "runtime"
 allow = ["base", "contracts", "vmm"]
 # devices는 crate로 의존하지 않는다: 바이너리를 기동하고 contracts/device(vhost-user 소켓)로만 연결한다.
-# vmm은 vmm/api의 Machine REST 클라이언트 용도.
+# vmm은 host/vmm/api의 Machine REST 클라이언트 용도.
 forbid_concepts = ["tenant", "billing"]

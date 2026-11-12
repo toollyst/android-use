@@ -7,7 +7,7 @@
    스토리지(GCS 등) · WebRTC 게이트웨이 · 프록시 · 녹화 보관
            │  contracts/node (Node API)  +  contracts/spi 구현체 주입
 [droid-use: 이 레포, Apache-2.0]
-   embedders/node: 머신 한 대에서 여러 인스턴스를 운영하는 노드 데몬
+   host/entrypoints/node: 머신 한 대에서 여러 인스턴스를 운영하는 노드 데몬
    runtime / services / devices / vmm / guest
 ```
 - **코어**: 머신 한 대 안에서 일어나는 모든 일. 셀프호스팅 단일 노드로 완결된다.
@@ -18,17 +18,17 @@
 ## 2. SPI (contracts/spi)
 | SPI | 사용 위치 | 코어 기본 구현 | SaaS 구현 예 |
 |---|---|---|---|
-| `SnapshotStore`, `ImageStore` | runtime/snapshot | 로컬 파일시스템 | 오브젝트 스토리지 + 지역 캐시 |
-| `MemorySource` | runtime/snapshot (uffd) | 로컬 파일 | 원격 페이지 서버 (lazy restore) |
+| `SnapshotStore`, `ImageStore` | host/runtime/snapshot | 로컬 파일시스템 | 오브젝트 스토리지 + 지역 캐시 |
+| `MemorySource` | host/runtime/snapshot (uffd) | 로컬 파일 | 원격 페이지 서버 (lazy restore) |
 | `ProfileStore` | runtime (디스크 profile 레이어) | 로컬 | 사용자별 로그인 상태 보존 |
-| `Authenticator`, `Authorizer` | embedders/adp_server, embedders/node | 로컬 토큰 | API 키, OIDC, 테넌트 권한 |
-| `PolicyProvider` | services/network, runtime/resources | 정적 설정 | 테넌트·플랜별 동적 정책 |
-| `EgressUpstream` | devices/net (usernet) | 직접 연결 | 프록시 체인, 지역 선택 |
-| `DeviceProfileProvider` | runtime/identity | 기본 프로필 | 기종·로케일·시간대·위치 프로필 |
-| `StreamTransport` | services/stream | WebSocket | WebRTC |
+| `Authenticator`, `Authorizer` | host/entrypoints/adp_server, host/entrypoints/node | 로컬 토큰 | API 키, OIDC, 테넌트 권한 |
+| `PolicyProvider` | host/services/network, host/runtime/resources | 정적 설정 | 테넌트·플랜별 동적 정책 |
+| `EgressUpstream` | host/devices/net (usernet) | 직접 연결 | 프록시 체인, 지역 선택 |
+| `DeviceProfileProvider` | host/runtime/identity | 기본 프로필 | 기종·로케일·시간대·위치 프로필 |
+| `StreamTransport` | host/services/stream | WebSocket | WebRTC |
 | `EventSink` | runtime, services | 로그 | 미터링, 감사 로그 |
-| `TelemetryExporter` | base/trace | Perfetto 파일 | OTel 중앙 수집 |
-| `Recorder` | services/record | 로컬 파일 | 보관 + 리플레이 |
+| `TelemetryExporter` | host/base/trace | Perfetto 파일 | OTel 중앙 수집 |
+| `Recorder` | host/services/record | 로컬 파일 | 보관 + 리플레이 |
 
 ### 시그니처 초안
 ```rust
@@ -76,7 +76,7 @@ pub trait Recorder: Send + Sync {
 ### 주입 방식
 - **in-process (Rust trait)**: 성능이 중요한 것 (`MemorySource`, `SnapshotStore`, `StreamTransport`, `EgressUpstream`). SaaS 레포가 코어 crate를 의존성으로 가져와 **자기 node 바이너리를 조립**한다. 동적 로딩 없음.
 - **out-of-process (gRPC 훅)**: 제어성 판단 (`Authorizer`, `PolicyProvider`). 언어 제약 없음.
-- 코어의 `embedders/node`는 SPI 구현체를 받는 **빌더 API**를 공개한다.
+- 코어의 `host/entrypoints/node`는 SPI 구현체를 받는 **빌더 API**를 공개한다.
 ```rust
 NodeBuilder::new(config)
     .snapshot_store(my_store)
@@ -88,7 +88,7 @@ NodeBuilder::new(config)
 ```
 
 ## 3. 지금 설계에 넣어야 하는 것 (나중에 고치기 비싼 것)
-1. **디스크 레이어링**: base / snapshot / profile CoW (`vmm/disk`)
+1. **디스크 레이어링**: base / snapshot / profile CoW (`host/vmm/disk`)
 2. **`MemorySource` 추상화**: restore가 로컬 파일을 직접 읽지 않음
 3. **CPU 템플릿 고정**과 스냅샷 메타데이터의 템플릿·이미지 해시
 4. **모든 채널 인증**: ADP, Node API, 스트림, guest_link

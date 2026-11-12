@@ -1,4 +1,4 @@
-# runtime/ (L4): 묶는 계층
+# host/runtime/ (L4): 묶는 계층
 
 vmm + devices + 게스트 이미지를 `Instance`로 조립하고 수명주기를 관리한다. 도메인 기능은 하지 않는다. 상세: `docs/07-runtime.md`
 

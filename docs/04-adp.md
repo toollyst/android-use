@@ -20,8 +20,8 @@
 | **Flutter / React Native** | 시맨틱 트리 | agent가 접근성 서비스로 등록되면 앱이 시맨틱을 노출 (패치 불필요) |
 | **게임·커스텀 렌더러** | 레이어 구조와 픽셀 | AOSP 패치: SurfaceFlinger 레이어 정보·레이어별 캡처 |
 | **윈도우·태스크** | 포커스 앱, activity 스택, 다이얼로그, IME, 토스트, 알림, 시스템 UI | AOSP 패치: WindowManager/ActivityTaskManager 이벤트 hook |
-| **픽셀** | 전체 화면, 영역, 레이어 단위 | 호스트 scanout(`devices/gpu` → `vmm/scanout`) + SurfaceFlinger 레이어 캡처 |
-| **네트워크** | 앱별 플로우, (정책 허용 시) 요청·응답 | `devices/net` 관찰 + `services/network` 정책. TLS 가시성은 세션별 CA를 시스템 저장소에 주입 (정책으로 on/off) |
+| **픽셀** | 전체 화면, 영역, 레이어 단위 | 호스트 scanout(`host/devices/gpu` → `host/vmm/scanout`) + SurfaceFlinger 레이어 캡처 |
+| **네트워크** | 앱별 플로우, (정책 허용 시) 요청·응답 | `host/devices/net` 관찰 + `host/services/network` 정책. TLS 가시성은 세션별 CA를 시스템 저장소에 주입 (정책으로 on/off) |
 | **로그·크래시** | logcat, ANR, tombstone | adpd |
 
 ## 3. 핵심 보장
@@ -30,8 +30,8 @@
 - `FrameId = { display: u32, vsyncId: i64, sfFrame: u64 }`
   - `vsyncId`: Choreographer vsync ID (앱 쪽)
   - `sfFrame`: SurfaceFlinger 프레임 번호 (합성 쪽)
-- 호스트(`runtime/instance`의 `FrameChannel`)는 최근 N 프레임의 scanout을 링 버퍼로 유지한다. `Screen.captureScreenshot({frameId})`는 **정확히 그 프레임**을 주거나 `FRAME_EXPIRED` 에러를 낸다. 추측해서 다른 프레임을 주지 않는다.
-- 게스트 frameId와 호스트 scanout은 runtime의 `FrameChannel`이 virtio 수준 식별자로 **정확히** 매칭한다. 추정하지 않으며, 매칭되지 않은 프레임은 frameId 지정 요청에 쓰지 않는다. `services/inspect`와 `services/screen`은 같은 매칭 결과를 쓴다.
+- 호스트(`host/runtime/instance`의 `FrameChannel`)는 최근 N 프레임의 scanout을 링 버퍼로 유지한다. `Screen.captureScreenshot({frameId})`는 **정확히 그 프레임**을 주거나 `FRAME_EXPIRED` 에러를 낸다. 추측해서 다른 프레임을 주지 않는다.
+- 게스트 frameId와 호스트 scanout은 runtime의 `FrameChannel`이 virtio 수준 식별자로 **정확히** 매칭한다. 추정하지 않으며, 매칭되지 않은 프레임은 frameId 지정 요청에 쓰지 않는다. `host/services/inspect`와 `host/services/screen`은 같은 매칭 결과를 쓴다.
 
 ### 3.2 안정적인 노드 ID
 - `NodeId`는 불투명 문자열. 같은 View/Compose 노드/접근성 노드는 살아 있는 동안 같은 ID를 유지한다.
@@ -115,10 +115,10 @@ xpath://*[@resourceId="..."]
 system_server hook ─────────┼─ binder ─ adpd (SELinux 전용 도메인)
 WebView devtools 소켓 ──────┘            │ guest_link (vsock, 버전 협상, 세션 토큰)
                                          ▼
-          services/inspect · screen · input · app · network · log · webview
+          host/services/inspect · screen · input · app · network · log · webview
                                          │ (contracts/instance)
-          embedders/adp_server ── WebSocket JSON-RPC (인증) ── MCP / SDK / 디버거 UI
-          vmm/scanout ── 호스트 메모리에서 바로 픽셀 (게스트 왕복 없음)
+          host/entrypoints/adp_server ── WebSocket JSON-RPC (인증) ── clients/(MCP · SDK) · 디버거 UI
+          host/vmm/scanout ── 호스트 메모리에서 바로 픽셀 (게스트 왕복 없음)
 ```
 
 ## 7. 성능 목표 (초기값, 측정하며 조정)
@@ -129,7 +129,7 @@ WebView devtools 소켓 ──────┘            │ guest_link (vsock, 
 | 입력→화면 반영 | `Input.*` 요청 → 결과 프레임 `frameCommitted` |
 | 전체 트리 크기 | 일반 앱 화면 기준 JSON 크기 (압축 전후) |
 
-## 8. MCP 어댑터 (embedders/mcp)
+## 8. MCP 어댑터 (clients/mcp)
 ADP를 LLM이 쓰기 좋게 요약한 형태로 노출한다.
 
 | 도구 | 동작 |

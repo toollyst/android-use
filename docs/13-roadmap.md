@@ -11,7 +11,7 @@
 - [ ] `build/checklayers`, `tools/patch/lint.sh`, `build/codegen`
 - [ ] `contracts/` 8종 초안 (machine, device, guest_link, keymint, instance, adp, node, spi) + `VERSION`
 - [ ] 모든 레이어 crate·모듈 스켈레톤 (`Unimplemented` 반환)
-- [ ] `base/trace` (Perfetto) + trace ID 전파
+- [ ] `host/base/trace` (Perfetto) + trace ID 전파
 - [ ] `testing/e2e` 하네스 + MCP 기준 첫 E2E 시나리오들 (전부 빨간 상태)
 - [ ] `versions.toml` TBD 확정 (wick commit, AOSP 태그, GKI, gfxstream, rutabaga)
 - [ ] 인프라: 빌드 서버 + AOSP sync, C4A 부팅 하네스, 로컬 PC Linux 듀얼부팅
@@ -19,8 +19,8 @@
 ## 3. 2~4주차: 레이어 병렬 구현 (트랙)
 | 트랙 | 범위 |
 |---|---|
-| A. VMM | wick hook 패치, 범용 vhost-user frontend, shm region, `vmm/boot`, `vmm/disk`, `vmm/vmgenid`, `vmm/scanout` |
-| B. 디바이스 | `devices/gpu`(gfxstream), `devices/input`, `devices/net`(usernet), `devices/snd` |
+| A. VMM | wick hook 패치, 범용 vhost-user frontend, shm region, `host/vmm/boot`, `host/vmm/disk`, `host/vmm/vmgenid`, `host/vmm/scanout` |
+| B. 디바이스 | `host/devices/gpu`(gfxstream), `host/devices/input`, `host/devices/net`(usernet), `host/devices/snd` |
 | C. 게스트 | `wick_arm64`/`wick_x86_64` product, GKI 모듈, AVB, SELinux, frameworks hook 패치, inspector, adpd, agent, restore |
 | D. 런타임 | instance(FrameChannel 포함), session, snapshot(MemorySource, uffd), identity, keymint, jail, resources, stores |
 | E. 서비스·임베더 | inspect(트리 병합, frame sync), screen, input, app, adp_server, mcp, node |
@@ -43,7 +43,7 @@
 | 호환성 | berberis NativeBridge(arm32→arm64, arm64→x86_64), microG, HAL 보완, CTS 전체 목표 통과율 |
 | Linux x86_64 GPU | 로컬 PC에서 gfxstream Vulkan 경로 |
 | Windows | wick WHP 첫 부팅 이후: AppContainer, TPM, Vulkan |
-| 노드·SaaS 준비 | `embedders/node`, SPI 안정화, Node API v1 |
+| 노드·SaaS 준비 | `host/entrypoints/node`, SPI 안정화, Node API v1 |
 | 배포 | 서명, SBOM, OTA(A/B 델타), upstream rebase 자동화 |
 
 ## 6. 남은 결정

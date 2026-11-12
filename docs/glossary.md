@@ -12,7 +12,7 @@
 | **NodeId** | 노드 수명 동안 유지되는 불투명 ID |
 | **통합 트리** | View·접근성·Compose·WebView·레이어를 병합한 하나의 트리 |
 | **wick** | 크로스플랫폼 Firecracker (Linux KVM, macOS HVF, Windows WHP) |
-| **ext** | wick의 확장 방식(`vmm::ext`). 우리 VMM 기능은 `vmm/` crate로 같은 방식 |
+| **ext** | wick의 확장 방식(`vmm::ext`). 우리 VMM 기능은 `host/vmm/` crate로 같은 방식 |
 | **overlay** | AOSP 트리에 추가하는 우리 프로젝트 (`guest/vendor/` → `vendor/droiduse`) |
 | **hook 패치** | upstream 코드에 호출 지점만 넣는 패치. 로직은 overlay/ext |
 | **vhost-user** | virtio 디바이스를 별도 프로세스로 구현하는 표준 프로토콜 |
@@ -29,5 +29,5 @@
 | **ASB** | Android Security Bulletin. 월간 보안 패치 |
 | **SPI** | 코어 확장 지점 트레이트 (`contracts/spi`) |
 | **labels** | 인스턴스·세션·스냅샷의 불투명 key-value. 코어는 해석하지 않음 |
-| **node** | 머신 한 대에서 여러 인스턴스를 운영하는 데몬 (`embedders/node`) |
+| **node** | 머신 한 대에서 여러 인스턴스를 운영하는 데몬 (`host/entrypoints/node`) |
 | **control plane** | 여러 노드를 관리하는 상위 계층 (SaaS, 이 레포 밖) |
