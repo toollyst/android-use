@@ -59,11 +59,15 @@ CDP와 같은 JSON-RPC 스타일. 정의 파일은 `contracts/adp/protocol.json`
 - `sessionId`는 연결 수준 호출(`Connection.*`, 세션 밖의 `Target.*`)에서는 없고, 세션으로 가는 모든 메시지에는 반드시 있다.
 - 에러는 `{ "id", "error": { "code": "<에러 코드 이름>", "message", "data"? } }`이다. 코드는 아래 에러 코드 목록(`contracts/common` `ErrorCode`와 같은 코드 공간)이다.
 - 64비트 정수(`vsyncId`, `sfFrame` 등)는 JSON에서 10진 문자열로, 32비트 이하 정수는 숫자로 보낸다.
-- 바이너리 WebSocket 메시지는 앞 8바이트(big-endian 부호 없는 정수)가 그 메시지가 속한 요청의 `id`이고 나머지가 내용이다. 서버는 같은 `id`의 응답보다 먼저 보낸다.
-- 인증: WebSocket 업그레이드의 `Authorization: Bearer` 헤더(RFC 6750), 또는 첫 메시지 `Connection.auth`. 인증 전에는 다른 모든 메시지를 `UNAUTHENTICATED`로 거부한다. URL 쿼리 문자열의 토큰은 받지 않는다. 두 경로 모두 `Authenticator` SPI로 검증한다.
-- 화면을 바꾸는 입력 커맨드(노드 액션, 좌표 입력, 텍스트 입력)는 `resolveOn`(`dispatched` | `frameCommitted` | `idle`, 기본 `frameCommitted`)으로 응답 시점을 고르고 그 시점의 `frameId`를 돌려준다(`dispatched`는 없음). `idle`의 판정 기준과 기본 시간 제한은 서버 설정이다.
+- 바이너리 WebSocket 메시지는 앞 8바이트(big-endian 부호 없는 정수)가 그 메시지가 속한 요청의 `id`이고 나머지가 내용이다. 서버는 같은 `id`의 응답보다 먼저 보낸다. 클라이언트는 `App.uploadChunk` 요청마다 그 뒤에 정확히 하나를 보내고, 서버는 그것을 받은 뒤에 응답한다(거부할 때도). 대응하는 요청이 없는 클라이언트 바이너리 메시지는 연결을 상태 코드 1002(RFC 6455 §7.4.1)로 닫는다.
+- 인증: WebSocket 업그레이드의 `Authorization: Bearer` 헤더(RFC 6750), 또는 첫 메시지 `Connection.auth`. 인증 전에는 다른 모든 메시지를 `UNAUTHENTICATED`로 거부한다. URL 쿼리 문자열의 토큰은 받지 않는다. 두 경로 모두 `Authenticator` SPI로 검증한다. 인증은 연결당 한 번이다. 인증된 연결의 `Connection.auth`는 `INVALID_REQUEST`이고, 자격 증명을 바꾸려면 새로 연결한다.
+- 인증 직후 다른 어떤 커맨드보다 먼저 `Connection.hello`를 한 번 보내야 한다. 그 전의 다른 커맨드와 두 번째 `hello`는 `INVALID_REQUEST`다.
+- 요청은 선택적으로 W3C `traceparent`를 싣는다. 서버는 신뢰하지 않는 값으로 보고 형식을 검증하며, 형식이 틀린 값은 무시한다(요청은 거부하지 않는다). 클라이언트 trace를 잇는지, 새 trace를 시작해 링크하는지는 서버 설정이고 기본은 새 trace + 링크다.
+- 세션 커맨드가 받는 타깃 종류는 `protocol.json`의 `targetTypes`다. 다른 종류의 타깃 세션에서 보내면 `INVALID_REQUEST`다. 좌표 입력(`dispatchTouch`)과 스크린샷은 display 타깃의 세션에서 보낸다.
+- 화면을 바꾸는 입력 커맨드(노드 액션, 좌표 입력, 키 입력, 텍스트 입력)는 `resolveOn`(`dispatched` | `frameCommitted` | `idle`, 기본 `frameCommitted`)으로 응답 시점을 고르고 그 시점의 마지막 커밋 `frameId`를 돌려준다(`dispatched`는 없음). `idle`은 시간 제한 안에 idle이 되지 않아도 성공하고, 결과의 `idle`이 `true`(idle 도달) 또는 `false`(시간 제한 경과)다. `idle`의 판정 기준과 기본 시간 제한은 서버 설정이다.
 - `UI.treeMutated`의 `ops`는 노드 ID 기반 연산(`insert {parentId, previousSiblingId?, node}`, `update {nodeId, changes}`, `remove {nodeId}`, `move {nodeId, parentId, previousSiblingId?}`)이다. 배열 순서대로 적용하고 부모가 자식보다 먼저 온다. `update`는 바뀐 필드만 싣고 `null`은 선택 필드를 지운다. 클라이언트의 현재 프레임이 `baseFrameId`가 아니면 `getTree`로 다시 받는다. 다른 기준 프레임에 적용하지 않는다. diff 형식은 `DiffFormat`(현재 `nodeOps` 하나)으로 확장한다.
-- 스크린샷은 `transfer`(`binary` | `base64`, 기본 `binary`)로 전달 방식을 고른다.
+- 스크린샷은 `transfer`(`binary` | `base64`, 기본 `binary`)로 전달 방식을 고른다. `frameId`가 없으면 그 디스플레이의 마지막 커밋 프레임이고, 캡처한 `frameId`는 항상 돌려준다.
+- APK 업로드: `App.createUpload(size)`로 크기를 먼저 밝힌다(서버 최대 크기는 설정, 넘으면 바이트를 받기 전에 `INVALID_PARAMS`). 결과의 `maxChunkSize`(서버 설정) 이하 조각을 `App.uploadChunk(uploadId)` 요청 + 그 요청 `id`의 클라이언트 바이너리 메시지로 보내고 조각마다 응답을 받는다. `App.finishUpload(uploadId, sha256)`에서 SHA-256이 맞지 않으면 `INVALID_PARAMS`다. `install`은 `{kind: "upload", uploadId}`로 끝난 업로드를 가리키고 그것을 소비한다. 업로드는 만든 연결·세션에 속하고 1회용이며, 연결이 끊기거나 세션이 끝나거나 유휴 만료(서버 설정)가 지나면 버린다.
 ```jsonc
 // 요청
 { "id": 7, "sessionId": "s_abc", "method": "UI.getTree", "params": { "sources": ["view","compose","a11y"], "depth": -1 } }
@@ -95,12 +99,12 @@ type Rect = { x: number; y: number; w: number; h: number };
 | 도메인 | 커맨드 | 이벤트 |
 |---|---|---|
 | `Connection` | `auth(token)`, `hello(protocolVersion)` | - |
-| `Target` | `getTargets` (인스턴스, 디스플레이, 윈도우, 프로세스, WebView), `attachToTarget(targetId)` → `sessionId` | `targetCreated/Destroyed` |
+| `Target` | `getTargets` (인스턴스, 디스플레이, 윈도우, 프로세스, WebView. 주체가 attach할 수 있는 타깃만), `attachToTarget(targetId)` → `sessionId`, `detachFromTarget(sessionId)` | `targetCreated/Destroyed`, `detachedFromTarget(sessionId, reason)` |
 | `UI` | `getTree(sources, depth, windowId?)`, `querySelector(selector)`, `querySelectorAll`, `getNode(id)`, `describe(id)` | `treeMutated`, `windowChanged`, `focusChanged`, `imeChanged` |
 | `Accessibility` | `getFullAXTree`, `performAction(nodeId, action, args)` | - |
-| `Input` | 좌표: `dispatchTouch(type, pointers)`, `dispatchKey` (`KEYCODE_*` 이름), `insertText(text)` / 노드: `click`, `longClick`, `setText`, `scrollTo`, `scrollBy`, `swipe` (모두 `resolveOn`) | - |
+| `Input` | 좌표: `dispatchTouch(type, pointers)` / 키: `dispatchKey(type, keyCode)` (`KEYCODE_*` 이름) / 텍스트: `insertText(text)` / 노드: `click`, `longClick`, `setText`, `scrollTo`, `scrollBy`, `swipe` (모두 `resolveOn`) | - |
 | `Screen` | `captureScreenshot(region?, layer?, frameId?, format, transfer?)`, `startScreencast`, `stopScreencast`, `getDisplays` | `frameCommitted`, `screencastFrame` |
-| `App` | `install(source)`, `uninstall`, `launch(pkg, activity?, intent?)`, `stop`, `clearData`, `list`, `getActivityStack`, `grantPermission`, `pushFile`, `pullFile` | `activityLifecycle`, `anr`, `crash`, `notificationPosted` |
+| `App` | `createUpload(size)`, `uploadChunk(uploadId)`, `finishUpload(uploadId, sha256)`, `install(source)`, `uninstall`, `launch(pkg, activity?, intent?)`, `stop`, `clearData`, `list`, `getActivityStack`, `grantPermission`, `pushFile`, `pullFile` | `activityLifecycle`, `anr`, `crash`, `notificationPosted` |
 | `Network` | `enable`, `getResponseBody`, `setPolicy` | `requestWillBeSent`, `responseReceived`, `flowOpened/Closed` |
 | `Log` | `enable(filters)` | `entryAdded` |
 | `Overlay` | `highlightNode`, `hideHighlight` | - |
@@ -130,7 +134,7 @@ xpath://*[@resourceId="..."]
 | `POLICY_DENIED` | 정책이 거부했다 (attach 때 인가 거부 포함) |
 | `UNAUTHENTICATED` | 자격 증명이 없거나 유효하지 않다, 또는 인증 전 메시지 |
 | `UNSUPPORTED_VERSION` | 협상할 수 있는 프로토콜 버전이 없다 |
-| `INVALID_REQUEST` | 봉투가 잘못됐다: 형식 오류, 진행 중인 요청과 겹치는 `id`, `sessionId` 범위 위반, 연결 상태가 허용하지 않는 메시지 |
+| `INVALID_REQUEST` | 봉투가 잘못됐다: 형식 오류, 진행 중인 요청과 겹치는 `id`, `sessionId` 범위 위반, 연결에 없는 `sessionId`, 받지 않는 타깃 종류의 세션, 연결 상태가 허용하지 않는 메시지(`hello` 전 커맨드, 두 번째 `hello`, 인증된 연결의 `auth`, 한 업로드에 동시 둘째 `uploadChunk`) |
 | `METHOD_NOT_FOUND` | 알 수 없는 메서드 |
 | `INVALID_PARAMS` | 인자가 정의를 따르지 않는다: 필수 값 누락, 타입·열거값 불일치, 알 수 없는 union `kind`, 셀렉터 문법 오류·알 수 없는 엔진, 알 수 없는 diff 형식 |
 

@@ -16,7 +16,7 @@
 |---|---|---|---|
 | `machine` | runtime ↔ vmm | Rust trait + 확장 REST API | in-process / unix socket |
 | `device` | vmm ↔ devices | vhost-user 표준 + 확장 | unix socket + shm |
-| `guest_link` | runtime·services ↔ guest | IDL → codegen | gRPC over vsock |
+| `guest_link` | runtime·services ↔ guest | IDL → codegen | gRPC over vsock (채널 두 개) |
 | `keymint` | guest KeyMint HAL ↔ host/runtime/keymint | AOSP kmr wire 페이로드 + 우리 프레이밍·인증 | 전용 vsock 포트 |
 | `instance` | services ↔ runtime | Rust trait | in-process |
 | `adp` | host/entrypoints/adp_server ↔ clients·외부 클라이언트 | CDP 스타일 JSON-RPC 스키마 | WebSocket |
@@ -103,7 +103,9 @@ Debug.SetAdb      { enabled }
 // 복원
 Restore.Notify    ← { generation, completed_steps[] }   // VMGenID 변경 후 게스트 재초기화 완료 알림
 ```
-- gRPC over vsock이다. 게스트가 연결 하나를 열고 listening 포트를 열지 않는다. 호스트 → 게스트 호출도 이 연결로 가며 호출마다 자기 상태·deadline·취소를 가진다. 토큰은 불투명 비밀(bytes), `vmgenid`는 16바이트다. Hello·Auth 말고는 모든 호출이 양방향 모두 세션 토큰을 메타데이터 `droiduse-session-token-bin`에 싣고, 없거나 틀리면 `UNAUTHENTICATED`다. trace는 W3C Trace Context(`traceparent`, `tracestate`) 메타데이터로 싣는다.
+- gRPC over vsock이고, vsock 포트 두 개에 gRPC 채널 두 개다. 호스트 채널은 호스트가 서버이고 게스트 → 호스트 서비스(Hello, Auth, Rebind, 앞으로 게스트가 시작하는 서비스)를 제공한다. 게스트 채널은 adpd가 서버이고 호스트 → 게스트 서비스(Inspect, WebView, Debug 등)를 제공하며, 그 포트는 adpd의 SELinux 도메인만 bind할 수 있다. 포트 번호는 기본값이 있는 설정이다. 메시지 크기 제한은 채널마다 설정한다.
+- 두 채널의 모든 호출이 세션 토큰을 메타데이터 `droiduse-session-token-bin`에, trace를 W3C Trace Context(`traceparent`, `tracestate`) 메타데이터에 싣는다. 토큰이 없거나 틀리면 `UNAUTHENTICATED`다. 토큰은 불투명 비밀(bytes), `vmgenid`는 16바이트다.
+- 첫 세션 토큰은 VMM이 붙이는 전용 비밀 디스크로 게스트에 가고, 그 디스크는 adpd의 SELinux 도메인만 읽을 수 있다. `Auth.Rebind`가 restore 뒤마다 토큰을 바꾼다.
 - KeyMint HAL 채널은 guest_link와 **분리된 전용 vsock 포트**를 쓰며 계약은 `keymint`다 (아래).
 
 ## keymint
