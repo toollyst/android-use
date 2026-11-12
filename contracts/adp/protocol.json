@@ -6,15 +6,15 @@
     { "name": "TARGET_GONE", "description": "The target is gone." },
     { "name": "NOT_ACTIONABLE", "description": "The action cannot be performed on the target." },
     { "name": "TIMEOUT", "description": "Timed out." },
-    { "name": "POLICY_DENIED", "description": "Denied by policy, including an Authorizer denial at attach." },
+    { "name": "POLICY_DENIED", "description": "Denied by policy, including an Authorizer denial at attach or at a command (authorization is checked again for every command in a session; an Authorizer failure counts as a denial)." },
     { "name": "UNAUTHENTICATED", "description": "The credential is missing or invalid, or a message arrived before authentication." },
     { "name": "UNSUPPORTED_VERSION", "description": "No protocol version both sides support." },
-    { "name": "INVALID_REQUEST", "description": "The envelope is malformed: not a Request object, an id that is not an integer in range or duplicates an in-flight request, a sessionId missing on a session-scoped or present on a connection-scoped method, a sessionId this connection does not hold, a command in the session of a target type it does not accept (targetTypes), or a message the connection state does not allow: a command before Connection.hello, a second Connection.hello, Connection.auth on an authenticated connection, a second App.uploadChunk in flight for one upload (before authentication: UNAUTHENTICATED)." },
+    { "name": "INVALID_REQUEST", "description": "The envelope is malformed: not a Request object, an id that is not an integer in range or duplicates an in-flight request, a sessionId missing on a session-scoped or present on a connection-scoped method, a sessionId this connection does not hold, a command in the session of a target type it does not accept (targetTypes), or a message the connection state does not allow: a command before Connection.hello, a second Connection.hello, Connection.auth on an authenticated connection, a second App.uploadChunk in flight for one upload, App.createUpload beyond the per-session upload limit (before authentication: UNAUTHENTICATED)." },
     { "name": "METHOD_NOT_FOUND", "description": "The method names no command of this protocol version." },
     { "name": "INVALID_PARAMS", "description": "The params do not follow the definition: a missing required value, a wrong type, an unknown enum value, an unknown union kind, a selector syntax error or unknown selector engine, an unknown diff format." }
   ],
   "envelope": {
-    "description": "WebSocket text messages carry one JSON object each: Request (client to server), Response (server to client, one per Request), Event (server to client). Binary messages: see binary.",
+    "description": "WebSocket text messages carry one JSON object each: Request (client to server), Response (server to client, one per Request), Event (server to client). Binary messages: see binary. A message above the maximum message size (a server setting) closes the connection with status 1009 (RFC 6455 section 7.4.1). The server sends a Ping (RFC 6455 section 5.5.2) at the keepalive interval (a server setting) and closes the connection (RFC 6455 section 7.1.1) when the number of unanswered Pings the keepalive setting allows is exceeded.",
     "types": [
       {
         "id": "Request",
@@ -24,7 +24,8 @@
           { "name": "sessionId", "description": "Absent for connection-scoped commands. Required for session-scoped commands. Otherwise INVALID_REQUEST.", "optional": true, "$ref": "Target.SessionID" },
           { "name": "method", "description": "Domain.command. Unknown: METHOD_NOT_FOUND.", "type": "string" },
           { "name": "params", "optional": true, "type": "object" },
-          { "name": "traceparent", "description": "W3C Trace Context traceparent (https://www.w3.org/TR/trace-context/ section 3.2). Untrusted. A value that does not follow the format is ignored, as Trace Context requires; the request is not rejected for it. Whether the server continues the client's trace or starts a new trace linked to it is a server setting; default: a new trace with a link.", "optional": true, "type": "string" }
+          { "name": "traceparent", "description": "W3C Trace Context traceparent (https://www.w3.org/TR/trace-context/ section 3.2). Untrusted. A value that does not follow section 3.2, including an all-zero trace-id or parent-id, is ignored (sections 3.2.2.3 and 3.2.2.4); the request is not rejected for it. Whether the server continues the client's trace or starts a new trace linked to it is a server setting; default: a new trace with a link.", "optional": true, "type": "string" },
+          { "name": "tracestate", "description": "W3C Trace Context tracestate (section 3.3). Untrusted. Ignored when traceparent is absent or ignored (sections 3.3 and 4.2).", "optional": true, "type": "string" }
         ]
       },
       {
@@ -62,11 +63,11 @@
   "domains": [
     {
       "domain": "Connection",
-      "description": "Connection setup. Authentication: an Authorization: Bearer header (RFC 6750) on the WebSocket upgrade, or auth as the first message. Until authenticated, every other message is rejected with UNAUTHENTICATED. A token in the URL query string is not accepted. Both paths use the Authenticator SPI. Right after authentication, hello is required once before any other command. A connection is authenticated once; a new credential means a new connection.",
+      "description": "Connection setup. Authentication: an Authorization: Bearer header (RFC 6750) on the WebSocket upgrade, or auth as the first message. Until authenticated, every other message is rejected with UNAUTHENTICATED. A token in the URL query string is not accepted. Both paths use the Authenticator SPI. An upgrade whose Authorization header does not authenticate is refused with HTTP 401 and WWW-Authenticate: Bearer error=\"invalid_token\" (RFC 6750 section 3.1; RFC 6455 section 4.2.2 allows a status other than 101). A connection not authenticated within the authentication deadline (a server setting) is closed with status 1008 (RFC 6455 section 7.4.1). Failed authentication is rate-limited (a server setting, on by default): over the limit, an upgrade gets HTTP 429 (RFC 6585 section 4) with Retry-After (RFC 9110 section 10.2.3), and Connection.auth closes the connection with status 1008. Right after authentication, hello is required once before any other command. A connection is authenticated once; a new credential means a new connection.",
       "commands": [
         {
           "name": "auth",
-          "description": "Authenticates the connection when the upgrade carried no Authorization header. On failure the server answers UNAUTHENTICATED and closes the connection. On an authenticated connection (by either path): INVALID_REQUEST; the connection keeps its credential.",
+          "description": "Authenticates the connection when the upgrade carried no Authorization header. On failure the server answers UNAUTHENTICATED and closes the connection with status 1008 (RFC 6455 section 7.4.1). On an authenticated connection (by either path): INVALID_REQUEST; the connection keeps its credential.",
           "scope": "connection",
           "parameters": [
             { "name": "token", "description": "Opaque token as issued, in RFC 6750 b64token syntax; the same string as in Authorization: Bearer.", "type": "string" }
@@ -75,7 +76,7 @@
         },
         {
           "name": "hello",
-          "description": "Version negotiation (docs/04-adp.md section 9). Required once per connection, right after authentication and before any other command; any other command before it, and a second hello, get INVALID_REQUEST. Compatible when the majors match, and for 0.x versions also the minors (semver caret rule); otherwise UNSUPPORTED_VERSION.",
+          "description": "Version negotiation (docs/04-adp.md section 9). Required once per connection, right after authentication and before any other command; any other command before it, and a second hello, get INVALID_REQUEST. Compatible when the majors match, and for 0.x versions also the minors (semver caret rule). Otherwise UNSUPPORTED_VERSION with error.data {protocolVersion: the server's ADP version}, and the server closes the connection with status 1008; there is no retry on the same connection.",
           "scope": "connection",
           "parameters": [
             { "name": "protocolVersion", "description": "The client's ADP version (semver).", "type": "string" }
@@ -88,7 +89,7 @@
     },
     {
       "domain": "Target",
-      "description": "CDP-style target model in flat session mode. Instances are top-level targets; display, window, process and webview targets sit beneath an instance. Attaching returns a sessionId; authorization is checked at attach.",
+      "description": "CDP-style target model in flat session mode. Instances are top-level targets; display, window, process and webview targets sit beneath an instance. Attaching returns a sessionId. Authorization is checked at attach and again before every command in a session; a denial answers that command with POLICY_DENIED and then ends the session with detachedFromTarget reason authorizationRevoked. A webview target's session carries CDP messages unchanged (CDP flat-session mode, Target.attachToTarget with flatten); how the ADP envelope rules (id space, error object, the Target commands) apply inside such a session is not defined yet.",
       "types": [
         { "id": "TargetID", "description": "Opaque target ID.", "type": "string" },
         { "id": "SessionID", "description": "Opaque session ID returned by attachToTarget.", "type": "string" },
@@ -109,7 +110,7 @@
         },
         {
           "id": "DetachReason",
-          "description": "clientDetach: detachFromTarget on this session or on a session above it. targetGone: the session's target was destroyed (targetDestroyed is sent too). authorizationRevoked: the server ended the session because the Authorizer no longer allows it.",
+          "description": "clientDetach: detachFromTarget on this session or on a session above it. targetGone: the session's target was destroyed (targetDestroyed is sent too). authorizationRevoked: a command in the session was denied by the Authorizer (POLICY_DENIED).",
           "type": "string",
           "enum": ["clientDetach", "targetGone", "authorizationRevoked"]
         }
@@ -215,7 +216,7 @@
             { "name": "package", "optional": true, "type": "string" },
             { "name": "className", "optional": true, "type": "string" },
             { "name": "resourceId", "optional": true, "type": "string" },
-            { "name": "role", "optional": true, "type": "string" },
+            { "name": "role", "description": "WAI-ARIA 1.2 role name (https://www.w3.org/TR/wai-aria-1.2/ section 5.3), from the node's className or Compose Role by the table contracts/adp/roles/role-map.json. Absent when the table has no entry for the node.", "optional": true, "type": "string" },
             { "name": "text", "optional": true, "type": "string" },
             { "name": "contentDescription", "optional": true, "type": "string" },
             { "name": "hint", "optional": true, "type": "string" },
@@ -231,9 +232,33 @@
             { "name": "longClickable", "optional": true, "type": "boolean" },
             { "name": "scrollable", "optional": true, "type": "boolean" },
             { "name": "editable", "optional": true, "type": "boolean" },
-            { "name": "actions", "description": "Actions that can be performed.", "optional": true, "type": "array", "items": { "type": "string" } },
+            { "name": "actions", "description": "AccessibilityNodeInfo.getActionList() of the node.", "optional": true, "type": "array", "items": { "$ref": "NodeAction" } },
             { "name": "webviewTargetId", "description": "CDP target reference when the node is a WebView.", "optional": true, "type": "string" },
             { "name": "children", "optional": true, "type": "array", "items": { "$ref": "Node" } }
+          ]
+        },
+        {
+          "id": "NodeAction",
+          "description": "One android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction. Tagged union on kind.",
+          "type": "object",
+          "discriminator": "kind",
+          "variants": [
+            {
+              "kind": "standard",
+              "description": "A standard action (one of the AccessibilityAction ACTION_* constants).",
+              "properties": [
+                { "name": "name", "description": "The constant's name, for example ACTION_CLICK.", "type": "string" },
+                { "name": "label", "description": "AccessibilityAction.getLabel(); absent when null.", "optional": true, "type": "string" }
+              ]
+            },
+            {
+              "kind": "custom",
+              "description": "A custom action.",
+              "properties": [
+                { "name": "id", "description": "AccessibilityAction.getId().", "type": "integer", "format": "int32" },
+                { "name": "label", "description": "AccessibilityAction.getLabel().", "type": "string" }
+              ]
+            }
           ]
         },
         {
@@ -273,7 +298,7 @@
             { "name": "longClickable", "optional": true, "nullable": true, "type": "boolean" },
             { "name": "scrollable", "optional": true, "nullable": true, "type": "boolean" },
             { "name": "editable", "optional": true, "nullable": true, "type": "boolean" },
-            { "name": "actions", "optional": true, "nullable": true, "type": "array", "items": { "type": "string" } },
+            { "name": "actions", "optional": true, "nullable": true, "type": "array", "items": { "$ref": "NodeAction" } },
             { "name": "webviewTargetId", "optional": true, "nullable": true, "type": "string" }
           ]
         },
@@ -321,16 +346,58 @@
       "commands": [
         {
           "name": "getTree",
-          "description": "Returns the unified tree for one frame.",
+          "description": "Returns the unified tree of the session's display for one frame.",
           "scope": "session",
+          "targetTypes": ["display"],
           "parameters": [
             { "name": "sources", "type": "array", "items": { "type": "string", "enum": ["view", "a11y", "compose", "webview", "layer"] } },
-            { "name": "depth", "type": "integer" },
+            { "name": "depth", "description": "Levels below the root to include; -1: the whole tree. Below -1: INVALID_PARAMS.", "type": "integer", "format": "int32" },
             { "name": "windowId", "optional": true, "type": "string" }
           ],
           "returns": [
             { "name": "frameId", "$ref": "FrameId" },
             { "name": "root", "$ref": "Node" }
+          ]
+        },
+        {
+          "name": "querySelector",
+          "description": "The first node, in document order, that selector matches in the tree of the session's display.",
+          "scope": "session",
+          "targetTypes": ["display"],
+          "parameters": [
+            { "name": "selector", "$ref": "Selector" },
+            { "name": "frameId", "description": "Absent: the latest committed frame of the session's display. A frame whose tree the server no longer holds: FRAME_EXPIRED. A frameId of another display: INVALID_PARAMS.", "optional": true, "$ref": "FrameId" }
+          ],
+          "returns": [
+            { "name": "frameId", "description": "The frame queried, always present.", "$ref": "FrameId" },
+            { "name": "nodeIds", "description": "At most one node.", "type": "array", "items": { "$ref": "NodeId" } }
+          ]
+        },
+        {
+          "name": "querySelectorAll",
+          "description": "Every node, in document order, that selector matches in the tree of the session's display.",
+          "scope": "session",
+          "targetTypes": ["display"],
+          "parameters": [
+            { "name": "selector", "$ref": "Selector" },
+            { "name": "frameId", "description": "As for querySelector.", "optional": true, "$ref": "FrameId" }
+          ],
+          "returns": [
+            { "name": "frameId", "description": "The frame queried, always present.", "$ref": "FrameId" },
+            { "name": "nodeIds", "type": "array", "items": { "$ref": "NodeId" } }
+          ]
+        },
+        {
+          "name": "getNode",
+          "description": "One node in the latest committed frame of the session's display, without children (children absent). Gone: NODE_GONE.",
+          "scope": "session",
+          "targetTypes": ["display"],
+          "parameters": [
+            { "name": "nodeId", "$ref": "NodeId" }
+          ],
+          "returns": [
+            { "name": "frameId", "$ref": "FrameId" },
+            { "name": "node", "$ref": "Node" }
           ]
         }
       ],
@@ -347,21 +414,91 @@
         }
       ]
     },
-    { "domain": "Accessibility" },
+    {
+      "domain": "Accessibility",
+      "types": [
+        {
+          "id": "ActionRef",
+          "description": "An action of AccessibilityNodeInfo (android.view.accessibility). Tagged union on kind. A server rejects a kind it does not know with INVALID_PARAMS.",
+          "type": "object",
+          "discriminator": "kind",
+          "variants": [
+            {
+              "kind": "standard",
+              "properties": [
+                { "name": "name", "description": "The name of an AccessibilityNodeInfo.AccessibilityAction standard action constant (ACTION_*, for example ACTION_CLICK) defined by the server's Android release (versions.toml: android-17.0.0_r1). Unknown: INVALID_PARAMS.", "type": "string" }
+              ]
+            },
+            {
+              "kind": "custom",
+              "properties": [
+                { "name": "id", "description": "AccessibilityAction.getId() of a custom action the node exposes (UI.NodeAction kind custom).", "type": "integer", "format": "int32" }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "ActionArguments",
+          "description": "Arguments of AccessibilityNodeInfo.performAction(int, Bundle), named by the AccessibilityNodeInfo ACTION_ARGUMENT_* constants and typed as their documentation states (frameworks/base core/java/android/view/accessibility/AccessibilityNodeInfo.java at android-17.0.0_r1: int is int32, float is number, CharSequence and String are string). Each is put in the Bundle under the constant's value. A name not listed here: INVALID_PARAMS. Not supported: ACTION_ARGUMENT_SELECTION_PARCELABLE (type AccessibilityNodeInfo.Selection) and the hidden ACTION_ARGUMENT_ACCESSIBLE_CLICKABLE_SPAN.",
+          "type": "object",
+          "properties": [
+            { "name": "ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT", "optional": true, "type": "integer", "format": "int32" },
+            { "name": "ACTION_ARGUMENT_HTML_ELEMENT_STRING", "optional": true, "type": "string" },
+            { "name": "ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN", "optional": true, "type": "boolean" },
+            { "name": "ACTION_ARGUMENT_SELECTION_START_INT", "optional": true, "type": "integer", "format": "int32" },
+            { "name": "ACTION_ARGUMENT_SELECTION_END_INT", "optional": true, "type": "integer", "format": "int32" },
+            { "name": "ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE", "optional": true, "type": "string" },
+            { "name": "ACTION_ARGUMENT_ROW_INT", "optional": true, "type": "integer", "format": "int32" },
+            { "name": "ACTION_ARGUMENT_COLUMN_INT", "optional": true, "type": "integer", "format": "int32" },
+            { "name": "ACTION_ARGUMENT_PROGRESS_VALUE", "optional": true, "type": "number" },
+            { "name": "ACTION_ARGUMENT_MOVE_WINDOW_X", "optional": true, "type": "integer", "format": "int32" },
+            { "name": "ACTION_ARGUMENT_MOVE_WINDOW_Y", "optional": true, "type": "integer", "format": "int32" },
+            { "name": "ACTION_ARGUMENT_PRESS_AND_HOLD_DURATION_MILLIS_INT", "optional": true, "type": "integer", "format": "int32" },
+            { "name": "ACTION_ARGUMENT_DIRECTION_INT", "description": "One of the android.view.View FOCUS_* values the constant's documentation lists.", "optional": true, "type": "integer", "format": "int32" },
+            { "name": "ACTION_ARGUMENT_SCROLL_AMOUNT_FLOAT", "description": "A flagged API (Flags.FLAG_GRANULAR_SCROLLING); on a release where the flag is off: INVALID_PARAMS.", "optional": true, "type": "number" }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "name": "performAction",
+          "description": "Calls AccessibilityNodeInfo.performAction(int, Bundle) on a node of the session's display tree. An action the node does not expose (UI.Node actions), or performAction returning false: NOT_ACTIONABLE. Gone: NODE_GONE.",
+          "scope": "session",
+          "targetTypes": ["display"],
+          "parameters": [
+            { "name": "nodeId", "$ref": "UI.NodeId" },
+            { "name": "action", "$ref": "ActionRef" },
+            { "name": "arguments", "optional": true, "$ref": "ActionArguments" },
+            { "name": "resolveOn", "description": "Default: frameCommitted.", "optional": true, "$ref": "Input.ResolveOn" },
+            { "name": "timeoutMs", "description": "Bound on the wait for resolveOn frameCommitted and idle. Default: a server setting.", "optional": true, "type": "integer", "format": "uint32" }
+          ],
+          "returns": [
+            { "name": "frameId", "description": "Absent for resolveOn dispatched. Otherwise the latest committed frame of the session's display when the command resolved.", "optional": true, "$ref": "UI.FrameId" },
+            { "name": "conditionMet", "description": "Present for resolveOn frameCommitted and idle: true when the awaited condition was reached, false when timeoutMs elapsed first.", "optional": true, "type": "boolean" }
+          ]
+        }
+      ]
+    },
     {
       "domain": "Input",
       "types": [
         {
           "id": "ResolveOn",
-          "description": "When an input command resolves. dispatched: once the input is dispatched (no frameId). frameCommitted: at the first frame committed after the input took effect. idle: when the UI is idle, or when idleTimeoutMs elapses first; the command succeeds either way and its result says which (idle). The idle criterion and the default timeout are server settings.",
+          "description": "When an input command resolves. dispatched: once the input is dispatched (no frameId). frameCommitted: at the first frame committed after the input took effect. idle: when the UI is idle. For frameCommitted and idle the wait is bounded by timeoutMs; the command succeeds either way, and conditionMet in the result says whether the awaited condition was reached. The idle criterion and the default timeoutMs are server settings.",
           "type": "string",
           "enum": ["dispatched", "frameCommitted", "idle"]
+        },
+        {
+          "id": "ClickMethod",
+          "description": "How a node click is performed. accessibility: AccessibilityNodeInfo.performAction with the node's standard action (ACTION_CLICK for click, ACTION_LONG_CLICK for longClick). touch: a synthesized touch at the centre of the node's bounds. auto: accessibility when the node exposes that action, touch otherwise.",
+          "type": "string",
+          "enum": ["accessibility", "touch", "auto"]
         },
         {
           "id": "TouchPoint",
           "type": "object",
           "properties": [
-            { "name": "id", "description": "Pointer ID.", "type": "integer" },
+            { "name": "id", "description": "MotionEvent pointer ID, 0 to 31 (MAX_POINTER_ID, frameworks/native include/input/Input.h at android-17.0.0_r1). Otherwise INVALID_PARAMS.", "type": "integer", "format": "uint32" },
             { "name": "x", "description": "Display physical pixels, screen coordinates.", "type": "number" },
             { "name": "y", "description": "Display physical pixels, screen coordinates.", "type": "number" }
           ]
@@ -370,81 +507,106 @@
       "commands": [
         {
           "name": "click",
-          "description": "Clicks a node. Gone: NODE_GONE. Cannot act: NOT_ACTIONABLE.",
+          "description": "Clicks a node of the session's display tree. method accessibility: performAction(ACTION_CLICK); a node that does not expose ACTION_CLICK, or performAction returning false: NOT_ACTIONABLE. method touch: ACTION_DOWN then ACTION_UP at the centre of the node's bounds; a node that is not visible, bounds with zero width or height, or a centre outside the display: NOT_ACTIONABLE. Gone: NODE_GONE.",
           "scope": "session",
+          "targetTypes": ["display"],
           "parameters": [
             { "name": "nodeId", "$ref": "UI.NodeId" },
+            { "name": "method", "description": "Default: auto.", "optional": true, "$ref": "ClickMethod" },
             { "name": "resolveOn", "description": "Default: frameCommitted.", "optional": true, "$ref": "ResolveOn" },
-            { "name": "idleTimeoutMs", "description": "For resolveOn idle. Default: a server setting.", "optional": true, "type": "integer", "format": "uint32" }
+            { "name": "timeoutMs", "description": "Bound on the wait for resolveOn frameCommitted and idle. Default: a server setting.", "optional": true, "type": "integer", "format": "uint32" }
           ],
           "returns": [
-            { "name": "frameId", "description": "Absent for resolveOn dispatched. Otherwise the latest committed frame when the command resolved.", "optional": true, "$ref": "UI.FrameId" },
-            { "name": "idle", "description": "Present for resolveOn idle only: true when the UI reached idle, false when idleTimeoutMs elapsed first.", "optional": true, "type": "boolean" }
+            { "name": "method", "description": "The method used.", "type": "string", "enum": ["accessibility", "touch"] },
+            { "name": "frameId", "description": "Absent for resolveOn dispatched. Otherwise the latest committed frame of the session's display when the command resolved.", "optional": true, "$ref": "UI.FrameId" },
+            { "name": "conditionMet", "description": "Present for resolveOn frameCommitted and idle: true when the awaited condition was reached, false when timeoutMs elapsed first.", "optional": true, "type": "boolean" }
           ]
         },
         {
           "name": "longClick",
-          "description": "Long-clicks a node. Errors as for click.",
+          "description": "Long-clicks a node. As click, with ACTION_LONG_CLICK for method accessibility; for method touch the pointer stays down for the guest's long-press timeout (ViewConfiguration.getLongPressTimeout(), Settings.Secure.LONG_PRESS_TIMEOUT) plus a margin that is a server setting.",
           "scope": "session",
+          "targetTypes": ["display"],
           "parameters": [
             { "name": "nodeId", "$ref": "UI.NodeId" },
+            { "name": "method", "description": "Default: auto.", "optional": true, "$ref": "ClickMethod" },
             { "name": "resolveOn", "description": "Default: frameCommitted.", "optional": true, "$ref": "ResolveOn" },
-            { "name": "idleTimeoutMs", "description": "For resolveOn idle. Default: a server setting.", "optional": true, "type": "integer", "format": "uint32" }
+            { "name": "timeoutMs", "description": "Bound on the wait for resolveOn frameCommitted and idle. Default: a server setting.", "optional": true, "type": "integer", "format": "uint32" }
           ],
           "returns": [
-            { "name": "frameId", "description": "Absent for resolveOn dispatched. Otherwise the latest committed frame when the command resolved.", "optional": true, "$ref": "UI.FrameId" },
-            { "name": "idle", "description": "Present for resolveOn idle only: true when the UI reached idle, false when idleTimeoutMs elapsed first.", "optional": true, "type": "boolean" }
+            { "name": "method", "description": "The method used.", "type": "string", "enum": ["accessibility", "touch"] },
+            { "name": "frameId", "description": "Absent for resolveOn dispatched. Otherwise the latest committed frame of the session's display when the command resolved.", "optional": true, "$ref": "UI.FrameId" },
+            { "name": "conditionMet", "description": "Present for resolveOn frameCommitted and idle: true when the awaited condition was reached, false when timeoutMs elapsed first.", "optional": true, "type": "boolean" }
           ]
         },
         {
           "name": "dispatchTouch",
-          "description": "One touch event in the coordinates of the session's display.",
+          "description": "One touch event on the session's display in the android.view.MotionEvent model. type is the MotionEvent action. pointers lists every pointer that is down during the event with its position, at most 16 (MAX_POINTERS, frameworks/native include/input/Input.h at android-17.0.0_r1); for ACTION_POINTER_UP and ACTION_UP it still includes the pointer going up. Sequence rules: ACTION_DOWN starts a gesture with exactly one pointer; ACTION_POINTER_DOWN adds actionPointerId to the pointers already down; ACTION_MOVE keeps the same pointers; ACTION_POINTER_UP removes actionPointerId while at least one other pointer stays down; ACTION_UP ends the gesture with exactly one pointer; ACTION_CANCEL ends the gesture and lists all its pointers. An event that breaks these rules: INVALID_PARAMS, and nothing is dispatched.",
           "scope": "session",
           "targetTypes": ["display"],
           "parameters": [
-            { "name": "type", "type": "string", "enum": ["down", "move", "up", "cancel"] },
+            { "name": "type", "type": "string", "enum": ["ACTION_DOWN", "ACTION_POINTER_DOWN", "ACTION_MOVE", "ACTION_POINTER_UP", "ACTION_UP", "ACTION_CANCEL"] },
             { "name": "pointers", "type": "array", "items": { "$ref": "TouchPoint" } },
+            { "name": "actionPointerId", "description": "The pointer that goes down or up. Required for ACTION_POINTER_DOWN and ACTION_POINTER_UP, absent otherwise; else INVALID_PARAMS.", "optional": true, "type": "integer", "format": "uint32" },
             { "name": "resolveOn", "description": "Default: frameCommitted.", "optional": true, "$ref": "ResolveOn" },
-            { "name": "idleTimeoutMs", "description": "For resolveOn idle. Default: a server setting.", "optional": true, "type": "integer", "format": "uint32" }
+            { "name": "timeoutMs", "description": "Bound on the wait for resolveOn frameCommitted and idle. Default: a server setting.", "optional": true, "type": "integer", "format": "uint32" }
           ],
           "returns": [
-            { "name": "frameId", "description": "Absent for resolveOn dispatched. Otherwise the latest committed frame when the command resolved.", "optional": true, "$ref": "UI.FrameId" },
-            { "name": "idle", "description": "Present for resolveOn idle only: true when the UI reached idle, false when idleTimeoutMs elapsed first.", "optional": true, "type": "boolean" }
+            { "name": "frameId", "description": "Absent for resolveOn dispatched. Otherwise the latest committed frame of the session's display when the command resolved.", "optional": true, "$ref": "UI.FrameId" },
+            { "name": "conditionMet", "description": "Present for resolveOn frameCommitted and idle: true when the awaited condition was reached, false when timeoutMs elapsed first.", "optional": true, "type": "boolean" }
           ]
         },
         {
           "name": "insertText",
-          "description": "Inserts text at the current input focus.",
+          "description": "Inserts text at the input focus of the session's display, as text that does not come from a key press (as CDP Input.insertText). No input focus: NOT_ACTIONABLE.",
           "scope": "session",
+          "targetTypes": ["display"],
           "parameters": [
             { "name": "text", "type": "string" },
             { "name": "resolveOn", "description": "Default: frameCommitted.", "optional": true, "$ref": "ResolveOn" },
-            { "name": "idleTimeoutMs", "description": "For resolveOn idle. Default: a server setting.", "optional": true, "type": "integer", "format": "uint32" }
+            { "name": "timeoutMs", "description": "Bound on the wait for resolveOn frameCommitted and idle. Default: a server setting.", "optional": true, "type": "integer", "format": "uint32" }
           ],
           "returns": [
-            { "name": "frameId", "description": "Absent for resolveOn dispatched. Otherwise the latest committed frame when the command resolved.", "optional": true, "$ref": "UI.FrameId" },
-            { "name": "idle", "description": "Present for resolveOn idle only: true when the UI reached idle, false when idleTimeoutMs elapsed first.", "optional": true, "type": "boolean" }
+            { "name": "frameId", "description": "Absent for resolveOn dispatched. Otherwise the latest committed frame of the session's display when the command resolved.", "optional": true, "$ref": "UI.FrameId" },
+            { "name": "conditionMet", "description": "Present for resolveOn frameCommitted and idle: true when the awaited condition was reached, false when timeoutMs elapsed first.", "optional": true, "type": "boolean" }
           ]
         },
         {
           "name": "dispatchKey",
-          "description": "One key event. Repeat count and meta state are not defined yet; they will be optional parameters.",
+          "description": "One key event on the session's display. type is the android.view.KeyEvent action. Repeat count and meta state are not defined yet; they will be optional parameters.",
           "scope": "session",
+          "targetTypes": ["display"],
           "parameters": [
-            { "name": "type", "type": "string", "enum": ["down", "up"] },
+            { "name": "type", "type": "string", "enum": ["ACTION_DOWN", "ACTION_UP"] },
             { "name": "keyCode", "description": "The name of an android.view.KeyEvent KEYCODE_* constant, for example KEYCODE_ENTER. A name the server's Android release does not define: INVALID_PARAMS.", "type": "string" },
             { "name": "resolveOn", "description": "Default: frameCommitted.", "optional": true, "$ref": "ResolveOn" },
-            { "name": "idleTimeoutMs", "description": "For resolveOn idle. Default: a server setting.", "optional": true, "type": "integer", "format": "uint32" }
+            { "name": "timeoutMs", "description": "Bound on the wait for resolveOn frameCommitted and idle. Default: a server setting.", "optional": true, "type": "integer", "format": "uint32" }
           ],
           "returns": [
-            { "name": "frameId", "description": "Absent for resolveOn dispatched. Otherwise the latest committed frame when the command resolved.", "optional": true, "$ref": "UI.FrameId" },
-            { "name": "idle", "description": "Present for resolveOn idle only: true when the UI reached idle, false when idleTimeoutMs elapsed first.", "optional": true, "type": "boolean" }
+            { "name": "frameId", "description": "Absent for resolveOn dispatched. Otherwise the latest committed frame of the session's display when the command resolved.", "optional": true, "$ref": "UI.FrameId" },
+            { "name": "conditionMet", "description": "Present for resolveOn frameCommitted and idle: true when the awaited condition was reached, false when timeoutMs elapsed first.", "optional": true, "type": "boolean" }
           ]
         }
       ]
     },
     {
       "domain": "Screen",
+      "types": [
+        {
+          "id": "DisplayInfo",
+          "description": "One android.view.Display.",
+          "type": "object",
+          "properties": [
+            { "name": "displayId", "description": "Display.getDisplayId(); the display field of UI.FrameId.", "type": "integer", "format": "uint32" },
+            { "name": "name", "description": "Display.getName().", "type": "string" },
+            { "name": "physicalWidth", "description": "Display.Mode.getPhysicalWidth() of Display.getMode().", "type": "integer", "format": "int32" },
+            { "name": "physicalHeight", "description": "Display.Mode.getPhysicalHeight() of Display.getMode().", "type": "integer", "format": "int32" },
+            { "name": "refreshRate", "description": "Display.Mode.getRefreshRate() of Display.getMode(), in Hz.", "type": "number" },
+            { "name": "densityDpi", "description": "android.content.res.Configuration.densityDpi of the display.", "type": "integer", "format": "int32" },
+            { "name": "rotation", "description": "Display.getRotation(), as the name of the android.view.Surface constant.", "type": "string", "enum": ["ROTATION_0", "ROTATION_90", "ROTATION_180", "ROTATION_270"] }
+          ]
+        }
+      ],
       "commands": [
         {
           "name": "captureScreenshot",
@@ -453,12 +615,23 @@
           "targetTypes": ["display"],
           "parameters": [
             { "name": "frameId", "description": "Absent: the latest committed frame of the session's display. A frameId of another display: INVALID_PARAMS.", "optional": true, "$ref": "UI.FrameId" },
+            { "name": "region", "description": "Part of the display to capture, in display physical pixels: x, y, w and h integers, w and h at least 1, inside the display. Otherwise INVALID_PARAMS. Absent: the whole display.", "optional": true, "$ref": "UI.Rect" },
             { "name": "format", "type": "string", "enum": ["png", "webp"] },
+            { "name": "quality", "description": "For format webp: lossy WebP at this quality, 0 to 100 (libwebp WebPConfig quality, lossless 0). Absent: lossless WebP (WebPConfig lossless 1). With format png, or outside 0 to 100: INVALID_PARAMS.", "optional": true, "type": "integer", "format": "uint32" },
             { "name": "transfer", "description": "binary: the image is a binary message (envelope.binary). base64: the image is in data. Default: binary.", "optional": true, "type": "string", "enum": ["binary", "base64"] }
           ],
           "returns": [
             { "name": "frameId", "description": "The captured frame, always present.", "$ref": "UI.FrameId" },
             { "name": "data", "description": "Present for transfer base64 only.", "optional": true, "type": "binary" }
+          ]
+        },
+        {
+          "name": "getDisplays",
+          "description": "The instance's displays.",
+          "scope": "session",
+          "targetTypes": ["instance"],
+          "returns": [
+            { "name": "displays", "type": "array", "items": { "$ref": "DisplayInfo" } }
           ]
         }
       ]
@@ -479,15 +652,82 @@
               "properties": [
                 { "name": "uploadId", "$ref": "UploadId" }
               ]
+            },
+            {
+              "kind": "uploads",
+              "description": "The APKs of one package installed together in one android.content.pm.PackageInstaller session (a base APK and split APKs): finished uploads of this session, at least one, no ID twice. Otherwise INVALID_PARAMS. install consumes all of them whatever its result.",
+              "properties": [
+                { "name": "uploadIds", "type": "array", "items": { "$ref": "UploadId" } }
+              ]
             }
+          ]
+        },
+        {
+          "id": "IntentExtra",
+          "description": "One extra of an android.content.Intent. Tagged union on type; the types are those Intent.parseCommandArgs (the am command) accepts that have an android.os.Bundle put method, named after that method (putString: String, putIntegerArrayList: IntegerArrayList), plus Uri (android.net.Uri.parse) and ComponentName (ComponentName.unflattenFromString). A server rejects a type it does not know with INVALID_PARAMS.",
+          "type": "object",
+          "discriminator": "type",
+          "variants": [
+            { "kind": "String", "properties": [ { "name": "key", "type": "string" }, { "name": "value", "type": "string" } ] },
+            { "kind": "Int", "properties": [ { "name": "key", "type": "string" }, { "name": "value", "type": "integer", "format": "int32" } ] },
+            { "kind": "Long", "properties": [ { "name": "key", "type": "string" }, { "name": "value", "type": "string", "format": "int64" } ] },
+            { "kind": "Float", "properties": [ { "name": "key", "type": "string" }, { "name": "value", "type": "number" } ] },
+            { "kind": "Double", "properties": [ { "name": "key", "type": "string" }, { "name": "value", "type": "number" } ] },
+            { "kind": "Boolean", "properties": [ { "name": "key", "type": "string" }, { "name": "value", "type": "boolean" } ] },
+            { "kind": "IntArray", "properties": [ { "name": "key", "type": "string" }, { "name": "value", "type": "array", "items": { "type": "integer", "format": "int32" } } ] },
+            { "kind": "LongArray", "properties": [ { "name": "key", "type": "string" }, { "name": "value", "type": "array", "items": { "type": "string", "format": "int64" } } ] },
+            { "kind": "FloatArray", "properties": [ { "name": "key", "type": "string" }, { "name": "value", "type": "array", "items": { "type": "number" } } ] },
+            { "kind": "DoubleArray", "properties": [ { "name": "key", "type": "string" }, { "name": "value", "type": "array", "items": { "type": "number" } } ] },
+            { "kind": "StringArray", "properties": [ { "name": "key", "type": "string" }, { "name": "value", "type": "array", "items": { "type": "string" } } ] },
+            { "kind": "IntegerArrayList", "properties": [ { "name": "key", "type": "string" }, { "name": "value", "type": "array", "items": { "type": "integer", "format": "int32" } } ] },
+            { "kind": "StringArrayList", "properties": [ { "name": "key", "type": "string" }, { "name": "value", "type": "array", "items": { "type": "string" } } ] },
+            { "kind": "Uri", "properties": [ { "name": "key", "type": "string" }, { "name": "value", "description": "Passed to android.net.Uri.parse.", "type": "string" } ] },
+            { "kind": "ComponentName", "properties": [ { "name": "key", "type": "string" }, { "name": "value", "description": "ComponentName.unflattenFromString form (package/class); null result: INVALID_PARAMS.", "type": "string" } ] }
+          ]
+        },
+        {
+          "id": "LaunchIntent",
+          "description": "Fields set on the android.content.Intent that launch starts, with the Intent methods named.",
+          "type": "object",
+          "properties": [
+            { "name": "action", "description": "Intent.setAction.", "optional": true, "type": "string" },
+            { "name": "data", "description": "android.net.Uri.parse of the value. data and type are set with Intent.setDataAndType, as Intent.parseCommandArgs does.", "optional": true, "type": "string" },
+            { "name": "type", "description": "MIME type. data and type are set with Intent.setDataAndType.", "optional": true, "type": "string" },
+            { "name": "identifier", "description": "Intent.setIdentifier.", "optional": true, "type": "string" },
+            { "name": "categories", "description": "Intent.addCategory for each.", "optional": true, "type": "array", "items": { "type": "string" } },
+            { "name": "flags", "description": "Names of android.content.Intent FLAG_* int constants defined by the server's Android release (versions.toml: android-17.0.0_r1), OR-ed into Intent.addFlags. Unknown: INVALID_PARAMS.", "optional": true, "type": "array", "items": { "type": "string" } },
+            { "name": "extras", "description": "Intent.putExtra for each, in order. A key given twice: INVALID_PARAMS.", "optional": true, "type": "array", "items": { "$ref": "IntentExtra" } }
+          ]
+        },
+        {
+          "id": "ApplicationInfo",
+          "description": "Fields of android.content.pm.ApplicationInfo.",
+          "type": "object",
+          "properties": [
+            { "name": "enabled", "description": "ApplicationInfo.enabled.", "type": "boolean" },
+            { "name": "flags", "description": "Names of the ApplicationInfo FLAG_* constants set in ApplicationInfo.flags, as defined by the server's Android release.", "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        {
+          "id": "PackageInfo",
+          "description": "Fields of android.content.pm.PackageInfo.",
+          "type": "object",
+          "properties": [
+            { "name": "packageName", "description": "PackageInfo.packageName.", "type": "string" },
+            { "name": "versionName", "description": "PackageInfo.versionName; absent when null.", "optional": true, "type": "string" },
+            { "name": "longVersionCode", "description": "PackageInfo.getLongVersionCode().", "type": "string", "format": "int64" },
+            { "name": "firstInstallTime", "description": "PackageInfo.firstInstallTime, milliseconds since the Unix epoch.", "type": "string", "format": "int64" },
+            { "name": "lastUpdateTime", "description": "PackageInfo.lastUpdateTime, milliseconds since the Unix epoch.", "type": "string", "format": "int64" },
+            { "name": "applicationInfo", "description": "PackageInfo.applicationInfo.", "$ref": "ApplicationInfo" }
           ]
         }
       ],
       "commands": [
         {
           "name": "createUpload",
-          "description": "Starts an upload of size bytes. size above the server's maximum upload size (a server setting), or 0: INVALID_PARAMS, before any bytes are sent.",
+          "description": "Starts an upload of size bytes. size above the server's maximum upload size (a server setting), or 0: INVALID_PARAMS, before any bytes are sent. A session that already holds the maximum number of unfinished uploads (a server setting): INVALID_REQUEST.",
           "scope": "session",
+          "targetTypes": ["instance"],
           "parameters": [
             { "name": "size", "description": "Total byte count.", "type": "string", "format": "uint64" }
           ],
@@ -500,6 +740,7 @@
           "name": "uploadChunk",
           "description": "Appends the payload of the client binary message that follows this Request (envelope.binary) to the upload. At most one uploadChunk per upload is in flight; a second: INVALID_REQUEST. A payload of 0 bytes or above maxChunkSize, one that would pass size, or an uploadId that names no unfinished upload of this session: INVALID_PARAMS, and nothing is appended.",
           "scope": "session",
+          "targetTypes": ["instance"],
           "parameters": [
             { "name": "uploadId", "$ref": "UploadId" }
           ],
@@ -511,6 +752,7 @@
           "name": "finishUpload",
           "description": "Finishes the upload. Fewer bytes received than size: INVALID_PARAMS, and the upload stays unfinished. A digest that does not match the received bytes: INVALID_PARAMS, and the upload is discarded. sha256 not 64 lowercase hex digits, or an uploadId that names no unfinished upload of this session: INVALID_PARAMS.",
           "scope": "session",
+          "targetTypes": ["instance"],
           "parameters": [
             { "name": "uploadId", "$ref": "UploadId" },
             { "name": "sha256", "description": "SHA-256 (FIPS 180-4) of all size bytes, as 64 lowercase hex digits.", "type": "string" }
@@ -519,12 +761,34 @@
         },
         {
           "name": "install",
-          "description": "Installs an application package.",
+          "description": "Installs the uploaded APKs through an android.content.pm.PackageInstaller session. A result other than PackageInstaller.STATUS_SUCCESS: NOT_ACTIONABLE with error.data {status: the name of the PackageInstaller STATUS_* constant, legacyStatus: PackageManager.installStatusToString of PackageInstaller.EXTRA_LEGACY_STATUS, absent when the result carries none}.",
           "scope": "session",
+          "targetTypes": ["instance"],
           "parameters": [
             { "name": "source", "$ref": "InstallSource" }
           ],
           "returns": []
+        },
+        {
+          "name": "launch",
+          "description": "Starts an activity of packageName with Context.startActivity; Intent.FLAG_ACTIVITY_NEW_TASK is always added, as the am start command does. Without activity and intent: the Intent PackageManager.getLaunchIntentForPackage(packageName) returns; none: NOT_ACTIONABLE. With activity: an explicit Intent for that component. With intent and no activity: that Intent restricted to packageName (Intent.setPackage). No matching activity (ActivityNotFoundException): NOT_ACTIONABLE.",
+          "scope": "session",
+          "targetTypes": ["instance"],
+          "parameters": [
+            { "name": "packageName", "type": "string" },
+            { "name": "activity", "description": "Activity class name; a leading . is relative to packageName (ComponentName.unflattenFromString form packageName/activity).", "optional": true, "type": "string" },
+            { "name": "intent", "optional": true, "$ref": "LaunchIntent" }
+          ],
+          "returns": []
+        },
+        {
+          "name": "list",
+          "description": "The installed packages: PackageManager.getInstalledPackages with no flags, for the current user.",
+          "scope": "session",
+          "targetTypes": ["instance"],
+          "returns": [
+            { "name": "packages", "type": "array", "items": { "$ref": "PackageInfo" } }
+          ]
         }
       ]
     },

@@ -71,6 +71,7 @@ vendor/droiduse/
 
 ## 7. 보안 요소
 - SELinux enforcing, 신규 컴포넌트마다 최소 권한 도메인
+- Only adpd's SELinux domain may use listening vsock sockets (`vsock_socket` `listen`; sepolicy enforces it with a `neverallow` for every other domain). The kernel checks `vsock_socket` permissions per domain and has no per-port labelling for vsock, so this domain rule is what protects the guest channel port. Debug builds only: adbd over vsock is also allowed
 - AVB 자체 키 + rollback 보호
 - KeyMint는 호스트 보안 저장소로 래핑 (게스트에 TEE 없음)
 - restore hook: 커널 RNG reseed, ANDROID_ID와 기타 식별자 재생성, keystore 재초기화, 네트워크 재협상
