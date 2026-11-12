@@ -1,0 +1,13 @@
+# Line endings. The repo is developed and checked in CI on Linux, macOS and Windows.
+# Every text file is stored and checked out with LF on every OS (this overrides
+# core.autocrlf), so file bytes are the same everywhere: generated-code hashes, patch line
+# counts, and test fixtures built from the real config files.
+* text=auto eol=lf
+
+# Patches carry upstream bytes exactly (a CRLF inside a hunk is content): never converted.
+*.patch -text
+*.diff -text
+
+# Windows command scripts need CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf

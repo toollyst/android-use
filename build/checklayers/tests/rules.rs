@@ -337,6 +337,36 @@ fn clean_repo_passes() {
     assert_eq!(r.stats.crates_checked, 16);
 }
 
+#[test]
+fn crlf_config_and_sources_are_read_the_same() {
+    // A checkout with CRLF line endings (the repo's .gitattributes prevents it, but the
+    // checker must not depend on that): same result, violations still caught.
+    let mut fx = Fx::clean();
+    let mut crlf = vec![
+        "LAYERS.toml".to_string(),
+        "host/vmm/boot/src/lib.rs".to_string(),
+    ];
+    for l in checklayers::config::load_layers(&repo_root())
+        .unwrap()
+        .layers
+    {
+        let lt = l.path.join("LAYER.toml");
+        if fx.path(&lt.to_string_lossy()).is_file() {
+            crlf.push(lt.to_string_lossy().into_owned());
+        }
+    }
+    for rel in &crlf {
+        let text = fs::read_to_string(fx.path(rel)).unwrap();
+        fx.file(rel, &text.replace("\r\n", "\n").replace('\n', "\r\n"));
+    }
+    assert_clean(&fx.run());
+    fx.file(
+        "host/vmm/boot/src/lib.rs",
+        "pub fn load_container() {}\r\npub fn android_props() {}\r\n",
+    );
+    assert_rules(&fx.run(), &["concept/forbidden"]);
+}
+
 // ---------------------------------------------------------------- dependency rules
 
 #[test]
