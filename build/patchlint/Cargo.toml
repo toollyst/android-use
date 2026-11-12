@@ -8,7 +8,10 @@ description = "Lints the upstream patches under third_party/<x>/patches/ (docs/0
 
 [dependencies]
 diffy.workspace = true
+globset.workspace = true
 mailparse.workspace = true
+serde.workspace = true
+toml.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
