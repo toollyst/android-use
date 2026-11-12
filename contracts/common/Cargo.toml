@@ -1,0 +1,16 @@
+# 버전은 contracts/common/VERSION 과 같아야 한다 (단일 원천: VERSION).
+# 루트 workspace가 없어도 단독으로 빌드되고, 나중에 workspace 멤버가 되어도 그대로 동작하도록
+# workspace 상속(`*.workspace = true`)을 쓰지 않는다.
+[package]
+name = "droiduse-contracts-common"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "계약 공통 타입: 에러 코드, trace ID, labels, frameId, 이벤트 스트림"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+
