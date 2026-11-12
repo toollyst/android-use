@@ -304,6 +304,8 @@ pub enum Action {
 /// - attach: `Target.attachToTarget`, on the target being attached to;
 /// - listing: `Target.attachToTarget` again, once per target `Target.getTargets` or a target
 ///   event would show (only targets the principal can attach to are shown);
+/// - create: `Target.createTarget`, on [`Resource::Server`] (the instance does not exist yet);
+/// - close: `Target.closeTarget`, on the instance being closed;
 /// - every command in a session: that command, on the session's target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]

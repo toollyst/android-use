@@ -23,7 +23,9 @@
 //!   defines only `sampled`.
 //! - Spaces and horizontal tabs around a value and around `tracestate` list members are ignored
 //!   (§3.3.1.1; HTTP optional whitespace).
-//! - `tracestate` keys follow the Level 1 grammar (§3.3.1.3.1), values §3.3.1.3.2. More than 32
+//! - `tracestate` keys are accepted in the key grammar of Trace Context Level 2 (W3C Candidate
+//!   Recommendation Draft, §3.3.2.2.1), a superset of Level 1 §3.3.1.3.1, so members other
+//!   systems wrote in that grammar are kept and passed on. Values follow §3.3.1.3.2. More than 32
 //!   members is invalid (§3.3.1.1). Of several members with the same key the left-most is kept,
 //!   the others are dropped (§3.3.1.4 allows one entry per key).
 //!
@@ -74,7 +76,7 @@ pub enum TraceContextError {
     InvalidTraceFlags,
     /// A non-empty `tracestate` list member has no `=` (§3.3.1.3).
     MalformedTraceStateMember,
-    /// A `tracestate` key does not follow §3.3.1.3.1.
+    /// A `tracestate` key does not follow the key grammar (Level 2 §3.3.2.2.1).
     InvalidTraceStateKey,
     /// A `tracestate` value does not follow §3.3.1.3.2.
     InvalidTraceStateValue,
@@ -602,32 +604,16 @@ fn trim_ows(mut s: &[u8]) -> &[u8] {
     s
 }
 
-/// `lcalpha / DIGIT / "_" / "-" / "*" / "/"` (§3.3.1.3.1).
-fn key_char(c: u8) -> bool {
-    matches!(c, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'-' | b'*' | b'/')
-}
-
-/// A key of §3.3.1.3.1:
+/// A key of Trace Context Level 2 §3.3.2.2.1, which accepts every key of Level 1 §3.3.1.3.1:
 ///
 /// ```text
-/// key = simple-key / multi-tenant-key
-/// simple-key = lcalpha 0*255( lcalpha / DIGIT / "_" / "-"/ "*" / "/" )
-/// multi-tenant-key = tenant-id "@" system-id
-/// tenant-id = ( lcalpha / DIGIT ) 0*240( lcalpha / DIGIT / "_" / "-"/ "*" / "/" )
-/// system-id = lcalpha 0*13( lcalpha / DIGIT / "_" / "-"/ "*" / "/" )
+/// key     = ( lcalpha / DIGIT ) 0*255 ( keychar )
+/// keychar = lcalpha / DIGIT / "_" / "-"/ "*" / "/" / "@"
 /// ```
 fn valid_key(key: &[u8]) -> bool {
-    let mut parts = key.split(|&c| c == b'@');
-    match (parts.next(), parts.next(), parts.next()) {
-        (Some(simple), None, None) => {
-            matches!(simple, [b'a'..=b'z', rest @ ..] if rest.len() <= 255 && rest.iter().all(|&c| key_char(c)))
-        }
-        (Some(prefix), Some(system), None) => {
-            matches!(prefix, [b'a'..=b'z' | b'0'..=b'9', rest @ ..] if rest.len() <= 240 && rest.iter().all(|&c| key_char(c)))
-                && matches!(system, [b'a'..=b'z', rest @ ..] if rest.len() <= 13 && rest.iter().all(|&c| key_char(c)))
-        }
-        _ => false,
-    }
+    let key_char =
+        |c: u8| matches!(c, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'-' | b'*' | b'/' | b'@');
+    matches!(key, [b'a'..=b'z' | b'0'..=b'9', rest @ ..] if rest.len() <= 255 && rest.iter().all(|&c| key_char(c)))
 }
 
 /// A value of §3.3.1.3.2:

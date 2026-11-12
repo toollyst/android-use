@@ -201,6 +201,26 @@ fn command_traits_carry_method_and_scope() {
 }
 
 #[test]
+fn instance_lifecycle_commands() {
+    use droiduse_contracts_adp::target::{
+        CloseTargetParams, CloseTargetReturns, CreateTargetParams, CreateTargetReturns,
+    };
+    assert_eq!(CreateTargetParams::METHOD, "Target.createTarget");
+    assert_eq!(CreateTargetParams::SCOPE, Scope::Connection);
+    assert_eq!(CreateTargetParams::TARGET_TYPES, None);
+    // no parameters yet: anything else is refused
+    serde_json::from_value::<CreateTargetParams>(json!({})).unwrap();
+    assert!(serde_json::from_value::<CreateTargetParams>(json!({ "image": "x" })).is_err());
+    let r: CreateTargetReturns = serde_json::from_value(json!({ "targetId": "t1" })).unwrap();
+    assert_eq!(r.target_id.0, "t1");
+    assert_eq!(CloseTargetParams::METHOD, "Target.closeTarget");
+    assert_eq!(CloseTargetParams::SCOPE, Scope::Connection);
+    let p: CloseTargetParams = serde_json::from_value(json!({ "targetId": "t1" })).unwrap();
+    assert_eq!(p.target_id.0, "t1");
+    serde_json::from_value::<CloseTargetReturns>(json!({})).unwrap();
+}
+
+#[test]
 fn tagged_union_by_kind() {
     let v = json!({ "source": { "kind": "upload", "uploadId": "u1" } });
     let p: InstallParams = serde_json::from_value(v.clone()).unwrap();
@@ -331,7 +351,8 @@ fn target_types_on_the_real_commands() {
     };
     use droiduse_contracts_adp::screen::{CaptureScreenshotParams, GetDisplaysParams};
     use droiduse_contracts_adp::target::{
-        AttachToTargetParams, DetachFromTargetParams, GetTargetsParams, TargetType as T,
+        AttachToTargetParams, CloseTargetParams, CreateTargetParams, DetachFromTargetParams,
+        GetTargetsParams, TargetType as T,
     };
     use droiduse_contracts_adp::ui::{GetNodeParams, QuerySelectorAllParams, QuerySelectorParams};
 
@@ -347,6 +368,8 @@ fn target_types_on_the_real_commands() {
         // connection-scoped: no target
         (row::<AuthParams>(), None),
         (row::<HelloParams>(), None),
+        (row::<CreateTargetParams>(), None),
+        (row::<CloseTargetParams>(), None),
         // Target.*: any target type
         (row::<GetTargetsParams>(), Some(all)),
         (row::<AttachToTargetParams>(), Some(all)),

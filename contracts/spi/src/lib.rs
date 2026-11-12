@@ -111,7 +111,8 @@ pub trait ProfileStore: Send + Sync {
 pub trait Authenticator: Send + Sync {
     /// Verifies the credential presented on the channel `ch` and returns the principal.
     ///
-    /// A credential that does not authenticate is an `Err` with `ErrorCode::Unauthenticated`.
+    /// A credential that does not authenticate is an `Err` with the code
+    /// `ErrorCode::Unauthenticated`; neither its message nor its detail contains the credential.
     /// The caller rejects the channel on every `Err` and on a cancelled call (fail closed). A
     /// read call, so dropping it (cancellation) has no side effects.
     async fn authenticate(&self, cred: &Credential, ch: &ChannelCtx) -> Result<Principal>;
@@ -286,17 +287,14 @@ pub struct RecordingRef(pub String);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use droiduse_contracts_common::Error;
+    use droiduse_contracts_common::{Error, ErrorCode};
     use std::pin::Pin;
     use std::task::{Context, Poll};
 
     fn assert_send<T: Send>(_: T) {}
 
     fn unimplemented_err() -> Error {
-        Error {
-            code: None,
-            message: String::new(),
-        }
+        Error::new(ErrorCode::Unimplemented, "compile-only dummy")
     }
 
     struct Dummy;

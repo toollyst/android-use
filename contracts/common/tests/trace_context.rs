@@ -7,16 +7,16 @@
 //!   License. The suite drives an HTTP service; only the header values and the outcome the suite
 //!   expects are taken here, restated as the result of parsing that value.
 //! - `spec:<section>`: an example or rule of W3C Trace Context Level 1 (W3C Recommendation,
-//!   23 November 2021, <https://www.w3.org/TR/trace-context/>).
+//!   23 November 2021, <https://www.w3.org/TR/trace-context/>); `spec-l2:<section>`: of Level 2
+//!   (W3C Candidate Recommendation Draft, 28 March 2024, <https://www.w3.org/TR/trace-context-2/>),
+//!   whose `tracestate` key grammar is accepted on input.
 //! - `probe`: malformed values that `opentelemetry_sdk` 0.33.1 `TraceContextPropagator` accepted
 //!   in a probe run during the design of this type (sign characters, wrong lengths, whitespace,
 //!   a trailing dash on version 00, duplicate keys, more than 32 members, uppercase).
 //! - `local`: further boundary cases.
 //!
-//! Where the suite's expectation and Level 1 differ, the Level 1 result is asserted and the
-//! case says so (`level1:`): the suite at that commit expects the Level 2 key grammar for
-//! `tracestate` (keys with `@` anywhere, up to 256 characters), which Level 1 §3.3.1.3.1 does
-//! not allow.
+//! The suite at that commit expects the Level 2 key grammar for `tracestate` (keys with `@`
+//! anywhere, up to 256 characters); those cases are tagged `(level2 key)`.
 
 use droiduse_contracts_common::{
     SpanId, TRACESTATE_MAX_MEMBERS, TraceContext, TraceContextError as E, TraceFlags, TraceId,
@@ -557,19 +557,19 @@ fn tracestate_cases() -> Vec<(&'static str, Vec<String>, Result<String, E>)> {
             Err(E::InvalidTraceStateKey),
         ),
         (
-            "w3c:test_tracestate_key_illegal_vendor_format (level1: suite expects accept)",
+            "w3c:test_tracestate_key_illegal_vendor_format (level2 key)",
             s(&["foo@=1,bar=2"]),
-            Err(E::InvalidTraceStateKey),
+            ok("foo@=1,bar=2"),
         ),
         (
-            "w3c:test_tracestate_key_illegal_vendor_format (level1: suite expects accept)",
+            "w3c:test_tracestate_key_illegal_vendor_format (level2 key)",
             s(&["foo@@bar=1,bar=2"]),
-            Err(E::InvalidTraceStateKey),
+            ok("foo@@bar=1,bar=2"),
         ),
         (
-            "w3c:test_tracestate_key_illegal_vendor_format (level1: suite expects accept)",
+            "w3c:test_tracestate_key_illegal_vendor_format (level2 key)",
             s(&["foo@bar@baz=1,bar=2"]),
-            Err(E::InvalidTraceStateKey),
+            ok("foo@bar@baz=1,bar=2"),
         ),
         (
             "w3c:test_tracestate_member_count_limit",
@@ -607,13 +607,23 @@ fn tracestate_cases() -> Vec<(&'static str, Vec<String>, Result<String, E>)> {
             Ok(format!("foo=1,{at_max}=1")),
         ),
         (
-            "w3c:test_tracestate_key_length_limit (level1: suite expects accept)",
+            "w3c:test_tracestate_key_length_limit (level2 key)",
             vec!["foo=1".into(), format!("{}@v=1", "t".repeat(242))],
-            Err(E::InvalidTraceStateKey),
+            Ok(format!("foo=1,{}@v=1", "t".repeat(242))),
         ),
         (
-            "w3c:test_tracestate_key_length_limit (level1: suite expects accept)",
+            "w3c:test_tracestate_key_length_limit (level2 key)",
             vec!["foo=1".into(), format!("t@{}=1", "v".repeat(15))],
+            Ok(format!("foo=1,t@{}=1", "v".repeat(15))),
+        ),
+        (
+            "spec-l2:3.3.2.2.1",
+            vec![format!("{}@{}=1", "t".repeat(200), "v".repeat(55))],
+            Ok(format!("{}@{}=1", "t".repeat(200), "v".repeat(55))),
+        ),
+        (
+            "spec-l2:3.3.2.2.1",
+            vec![format!("{}@{}=1", "t".repeat(200), "v".repeat(56))],
             Err(E::InvalidTraceStateKey),
         ),
         (
@@ -642,13 +652,19 @@ fn tracestate_cases() -> Vec<(&'static str, Vec<String>, Result<String, E>)> {
             ok("rojo=00f067aa0ba902b7,congo=t61rcWkgMzE"),
         ),
         ("spec:3.3.1.3.1", s(&["1a@b=1"]), ok("1a@b=1")),
-        ("spec:3.3.1.3.1", s(&["1a=1"]), Err(E::InvalidTraceStateKey)),
+        ("spec-l2:3.3.2.2.1", s(&["1a=1"]), ok("1a=1")),
+        ("spec-l2:3.3.2.2.1", s(&["a@1b=1"]), ok("a@1b=1")),
+        ("spec-l2:3.3.2.2.1", s(&["a@=1"]), ok("a@=1")),
         (
-            "spec:3.3.1.3.1",
-            s(&["a@1b=1"]),
+            "spec-l2:3.3.2.2.1",
+            s(&["_a=1"]),
             Err(E::InvalidTraceStateKey),
         ),
-        ("spec:3.3.1.3.1", s(&["a@=1"]), Err(E::InvalidTraceStateKey)),
+        (
+            "spec-l2:3.3.2.2.1",
+            s(&["a.b=1"]),
+            Err(E::InvalidTraceStateKey),
+        ),
         ("spec:3.3.1.3.1", s(&["=1"]), Err(E::InvalidTraceStateKey)),
         ("local", s(&["foo"]), Err(E::MalformedTraceStateMember)),
         (

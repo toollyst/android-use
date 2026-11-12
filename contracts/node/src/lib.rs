@@ -19,8 +19,10 @@ mod generated {
 
 pub use generated::*;
 
-/// gRPC metadata key: W3C Trace Context `traceparent`. Any call can carry it.
+/// gRPC metadata key: W3C Trace Context `traceparent`. Every call carries it. A missing or
+/// invalid `traceparent` makes the receiver start a new trace and drop `tracestate` (W3C Trace
+/// Context sections 3.2, 3.3 and 4.3). The same rule as guest_link.
 pub const TRACEPARENT_METADATA_KEY: &str = "traceparent";
 
-/// gRPC metadata key: W3C Trace Context `tracestate`. Any call can carry it.
+/// gRPC metadata key: W3C Trace Context `tracestate`. Optional; it goes with `traceparent`.
 pub const TRACESTATE_METADATA_KEY: &str = "tracestate";

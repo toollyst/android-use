@@ -13,6 +13,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+use std::sync::Arc;
 use std::time::Instant;
 
 use async_trait::async_trait;
@@ -74,6 +75,40 @@ pub struct InstanceId(pub String);
 /// Instance event. PLACEHOLDER: value set undecided.
 #[derive(Debug, Clone)]
 pub struct InstanceEvent {}
+
+/// Creates, lists and closes the instances of one host. `host/runtime` implements it over the
+/// `MachineFactory` it is given; services and entry points see only this trait.
+///
+/// **Cancellation**: if `create` or `close` is cancelled midway (future dropped), the instance
+/// ends in `Failed` and runtime cleans up the resources, as for [`SessionManager`].
+#[async_trait]
+pub trait InstanceManager: Send + Sync {
+    /// Creates an instance and answers once it is `Ready`. The image and VM size are runtime
+    /// settings. On failure no instance remains.
+    async fn create(&self, req: CreateInstance) -> Result<Arc<dyn Instance>>;
+    /// The current instances, in no particular order.
+    fn list(&self) -> Vec<Arc<dyn Instance>>;
+    /// The instance `id`, if it exists.
+    fn get(&self, id: &InstanceId) -> Option<Arc<dyn Instance>>;
+    /// Stops and destroys the instance `id`; it is gone from `list` when this returns `Ok`. An
+    /// `id` that names no instance: `TargetGone`.
+    async fn close(&self, id: &InstanceId) -> Result<()>;
+}
+
+/// What [`InstanceManager::create`] is asked for.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct CreateInstance {
+    /// Opaque labels the new instance carries. The core does not interpret them.
+    pub labels: Labels,
+}
+
+impl CreateInstance {
+    /// A request with these labels.
+    pub fn new(labels: Labels) -> Self {
+        Self { labels }
+    }
+}
 
 /// guest_link client.
 ///
@@ -158,16 +193,13 @@ pub struct Session {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use droiduse_contracts_common::Error;
+    use droiduse_contracts_common::{Error, ErrorCode};
 
     fn assert_send<T: Send>(_: T) {}
     fn assert_send_sync<T: Send + Sync + ?Sized>() {}
 
     fn unimplemented_err() -> Error {
-        Error {
-            code: None,
-            message: String::new(),
-        }
+        Error::new(ErrorCode::Unimplemented, "compile-only dummy")
     }
 
     struct DummySessions;
@@ -187,6 +219,23 @@ mod tests {
         }
     }
 
+    struct DummyInstances;
+    #[async_trait]
+    impl InstanceManager for DummyInstances {
+        async fn create(&self, _req: CreateInstance) -> Result<Arc<dyn Instance>> {
+            Err(unimplemented_err())
+        }
+        fn list(&self) -> Vec<Arc<dyn Instance>> {
+            Vec::new()
+        }
+        fn get(&self, _id: &InstanceId) -> Option<Arc<dyn Instance>> {
+            None
+        }
+        async fn close(&self, _id: &InstanceId) -> Result<()> {
+            Err(unimplemented_err())
+        }
+    }
+
     struct DummyFrames;
     #[async_trait]
     impl FrameChannel for DummyFrames {
@@ -202,7 +251,10 @@ mod tests {
     }
 
     /// Every future is `Send` even when called through a trait object.
-    fn dyn_futures_are_send(m: &dyn SessionManager, f: &dyn FrameChannel) {
+    fn dyn_futures_are_send(i: &dyn InstanceManager, m: &dyn SessionManager, f: &dyn FrameChannel) {
+        let id = InstanceId("i1".to_owned());
+        assert_send(i.create(CreateInstance::default()));
+        assert_send(i.close(&id));
         let s = Session {};
         assert_send(m.acquire(SessionRequest {}));
         assert_send(m.reset(&s));
@@ -220,12 +272,16 @@ mod tests {
     fn dummy_implements_contract_as_dyn() {
         assert_send_sync::<dyn Instance>();
         assert_send_sync::<dyn FrameChannel>();
+        assert_send_sync::<dyn InstanceManager>();
         assert_send_sync::<dyn SessionManager>();
         assert_send_sync::<dyn GuestChannel>();
         assert_send_sync::<dyn InputChannel>();
         assert_send_sync::<dyn NetObserver>();
+        let i: Box<dyn InstanceManager> = Box::new(DummyInstances);
         let m: Box<dyn SessionManager> = Box::new(DummySessions);
         let f: Box<dyn FrameChannel> = Box::new(DummyFrames);
-        dyn_futures_are_send(m.as_ref(), f.as_ref());
+        assert!(i.list().is_empty());
+        assert!(i.get(&InstanceId("i1".to_owned())).is_none());
+        dyn_futures_are_send(i.as_ref(), m.as_ref(), f.as_ref());
     }
 }
