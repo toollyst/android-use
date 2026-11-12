@@ -1,5 +1,5 @@
 {
-  "description": "ADP: Android DevTools Protocol (docs/04-adp.md). CDP-style domains, commands, events, types. The version is contracts/adp/VERSION. Only shapes the docs and owner decisions fully define are listed. 64-bit integers are JSON decimal strings: type string with format int64 or uint64. 32-bit and smaller integers are JSON numbers: type integer, with format uint32 or int32 where the width is fixed. Type binary is a base64 string (RFC 4648 section 4, with padding), as in CDP. Extensions to the CDP structure: errors, envelope, scope on commands and events, format, discriminator/variants on tagged unions.",
+  "description": "ADP: Android DevTools Protocol (docs/04-adp.md). CDP-style domains, commands, events, types. The version is contracts/adp/VERSION. Only shapes the docs and owner decisions fully define are listed. 64-bit integers are JSON decimal strings: type string with format int64 or uint64. 32-bit and smaller integers are JSON numbers: type integer, with format uint32 or int32 where the width is fixed. Type binary is a base64 string (RFC 4648 section 4, with padding), as in CDP. Extensions to the CDP structure: errors, envelope, scope on commands and events, format, discriminator/variants on tagged unions, nullable on optional properties (explicit null clears the field).",
   "errors": [
     { "name": "FRAME_EXPIRED", "description": "The requested frameId is no longer in the ring buffer. No other frame is substituted." },
     { "name": "NODE_GONE", "description": "The target node is gone." },
@@ -7,8 +7,11 @@
     { "name": "NOT_ACTIONABLE", "description": "The action cannot be performed on the target." },
     { "name": "TIMEOUT", "description": "Timed out." },
     { "name": "POLICY_DENIED", "description": "Denied by policy, including an Authorizer denial at attach." },
-    { "name": "UNAUTHENTICATED", "description": "Not authenticated." },
-    { "name": "UNSUPPORTED_VERSION", "description": "No protocol version both sides support." }
+    { "name": "UNAUTHENTICATED", "description": "The credential is missing or invalid, or a message arrived before authentication." },
+    { "name": "UNSUPPORTED_VERSION", "description": "No protocol version both sides support." },
+    { "name": "INVALID_REQUEST", "description": "The envelope is malformed: not a Request object, an id that is not an integer in range or duplicates an in-flight request, a sessionId missing on a session-scoped or present on a connection-scoped method, or a message the connection state does not allow (before authentication: UNAUTHENTICATED)." },
+    { "name": "METHOD_NOT_FOUND", "description": "The method names no command of this protocol version." },
+    { "name": "INVALID_PARAMS", "description": "The params do not follow the definition: a missing required value, a wrong type, an unknown enum value, an unknown union kind, a selector syntax error or unknown selector engine, an unknown diff format." }
   ],
   "envelope": {
     "description": "WebSocket text messages carry one JSON object each: Request (client to server), Response (server to client, one per Request), Event (server to client). Binary messages: see binary.",
@@ -17,9 +20,9 @@
         "id": "Request",
         "type": "object",
         "properties": [
-          { "name": "id", "description": "Non-negative integer, at most 2^53-1. Unique among the in-flight requests of the connection.", "type": "integer" },
-          { "name": "sessionId", "description": "Absent for connection-scoped commands. Required for session-scoped commands.", "optional": true, "$ref": "Target.SessionID" },
-          { "name": "method", "description": "Domain.command.", "type": "string" },
+          { "name": "id", "description": "Non-negative integer, at most 2^53-1. Unique among the in-flight requests of the connection; otherwise INVALID_REQUEST.", "type": "integer" },
+          { "name": "sessionId", "description": "Absent for connection-scoped commands. Required for session-scoped commands. Otherwise INVALID_REQUEST.", "optional": true, "$ref": "Target.SessionID" },
+          { "name": "method", "description": "Domain.command. Unknown: METHOD_NOT_FOUND.", "type": "string" },
           { "name": "params", "optional": true, "type": "object" }
         ]
       },
@@ -204,6 +207,87 @@
             { "name": "webviewTargetId", "description": "CDP target reference when the node is a WebView.", "optional": true, "type": "string" },
             { "name": "children", "optional": true, "type": "array", "items": { "$ref": "Node" } }
           ]
+        },
+        {
+          "id": "Selector",
+          "description": "Selector string. Grammar and semantics: contracts/adp/selectors/selector.ebnf. Conformance cases: contracts/adp/selectors/conformance.json. Syntax error or unknown engine: INVALID_PARAMS.",
+          "type": "string"
+        },
+        {
+          "id": "DiffFormat",
+          "description": "Tree diff format. nodeOps: TreeOp operations on node IDs. Extension point: a value the server does not know is rejected with INVALID_PARAMS.",
+          "type": "string",
+          "enum": ["nodeOps"]
+        },
+        {
+          "id": "NodeChanges",
+          "description": "Changed fields of a node. Absent: unchanged. null: the optional field is cleared. id and children never appear here; children change through insert, remove and move.",
+          "type": "object",
+          "properties": [
+            { "name": "source", "optional": true, "type": "string", "enum": ["view", "a11y", "compose", "webview", "layer"] },
+            { "name": "windowId", "optional": true, "type": "string" },
+            { "name": "bounds", "optional": true, "$ref": "Rect" },
+            { "name": "visible", "optional": true, "type": "boolean" },
+            { "name": "package", "optional": true, "nullable": true, "type": "string" },
+            { "name": "className", "optional": true, "nullable": true, "type": "string" },
+            { "name": "resourceId", "optional": true, "nullable": true, "type": "string" },
+            { "name": "role", "optional": true, "nullable": true, "type": "string" },
+            { "name": "text", "optional": true, "nullable": true, "type": "string" },
+            { "name": "contentDescription", "optional": true, "nullable": true, "type": "string" },
+            { "name": "hint", "optional": true, "nullable": true, "type": "string" },
+            { "name": "alpha", "optional": true, "nullable": true, "type": "number" },
+            { "name": "z", "optional": true, "nullable": true, "type": "number" },
+            { "name": "enabled", "optional": true, "nullable": true, "type": "boolean" },
+            { "name": "focused", "optional": true, "nullable": true, "type": "boolean" },
+            { "name": "selected", "optional": true, "nullable": true, "type": "boolean" },
+            { "name": "checked", "optional": true, "nullable": true, "type": "boolean" },
+            { "name": "clickable", "optional": true, "nullable": true, "type": "boolean" },
+            { "name": "longClickable", "optional": true, "nullable": true, "type": "boolean" },
+            { "name": "scrollable", "optional": true, "nullable": true, "type": "boolean" },
+            { "name": "editable", "optional": true, "nullable": true, "type": "boolean" },
+            { "name": "actions", "optional": true, "nullable": true, "type": "array", "items": { "type": "string" } },
+            { "name": "webviewTargetId", "optional": true, "nullable": true, "type": "string" }
+          ]
+        },
+        {
+          "id": "TreeOp",
+          "description": "One nodeOps operation. Applied in array order; a parent is inserted before its children.",
+          "type": "object",
+          "discriminator": "op",
+          "variants": [
+            {
+              "kind": "insert",
+              "description": "Inserts node with its subtree under parentId, right after previousSiblingId, or as the first child when previousSiblingId is absent.",
+              "properties": [
+                { "name": "parentId", "$ref": "NodeId" },
+                { "name": "previousSiblingId", "optional": true, "$ref": "NodeId" },
+                { "name": "node", "$ref": "Node" }
+              ]
+            },
+            {
+              "kind": "update",
+              "properties": [
+                { "name": "nodeId", "$ref": "NodeId" },
+                { "name": "changes", "$ref": "NodeChanges" }
+              ]
+            },
+            {
+              "kind": "remove",
+              "description": "Removes the node with its subtree. Removed IDs are never reused.",
+              "properties": [
+                { "name": "nodeId", "$ref": "NodeId" }
+              ]
+            },
+            {
+              "kind": "move",
+              "description": "Moves the node with its subtree under parentId, right after previousSiblingId, or as the first child when previousSiblingId is absent. The node keeps its ID.",
+              "properties": [
+                { "name": "nodeId", "$ref": "NodeId" },
+                { "name": "parentId", "$ref": "NodeId" },
+                { "name": "previousSiblingId", "optional": true, "$ref": "NodeId" }
+              ]
+            }
+          ]
         }
       ],
       "commands": [
@@ -221,6 +305,18 @@
             { "name": "root", "$ref": "Node" }
           ]
         }
+      ],
+      "events": [
+        {
+          "name": "treeMutated",
+          "description": "The tree changed from baseFrameId to frameId (format nodeOps). A client whose current frame is not baseFrameId re-fetches with getTree; ops are never applied to another base.",
+          "scope": "session",
+          "parameters": [
+            { "name": "baseFrameId", "$ref": "FrameId" },
+            { "name": "frameId", "$ref": "FrameId" },
+            { "name": "ops", "type": "array", "items": { "$ref": "TreeOp" } }
+          ]
+        }
       ]
     },
     { "domain": "Accessibility" },
@@ -229,7 +325,7 @@
       "types": [
         {
           "id": "ResolveOn",
-          "description": "When a node action resolves. dispatched: once the input is dispatched (no frameId). frameCommitted: at the first frame committed after the input took effect. idle: when the UI is idle; the idle criterion and the default timeout are server settings.",
+          "description": "When an input command resolves. dispatched: once the input is dispatched (no frameId). frameCommitted: at the first frame committed after the input took effect. idle: when the UI is idle; the idle criterion and the default timeout are server settings.",
           "type": "string",
           "enum": ["dispatched", "frameCommitted", "idle"]
         },
@@ -272,22 +368,30 @@
         },
         {
           "name": "dispatchTouch",
-          "description": "One touch event in coordinates.",
+          "description": "One touch event in coordinates. resolveOn idle past idleTimeoutMs: TIMEOUT (the input was already dispatched).",
           "scope": "session",
           "parameters": [
             { "name": "type", "type": "string", "enum": ["down", "move", "up", "cancel"] },
-            { "name": "pointers", "type": "array", "items": { "$ref": "TouchPoint" } }
+            { "name": "pointers", "type": "array", "items": { "$ref": "TouchPoint" } },
+            { "name": "resolveOn", "description": "Default: frameCommitted.", "optional": true, "$ref": "ResolveOn" },
+            { "name": "idleTimeoutMs", "description": "For resolveOn idle. Default: a server setting.", "optional": true, "type": "integer", "format": "uint32" }
           ],
-          "returns": []
+          "returns": [
+            { "name": "frameId", "description": "Absent for resolveOn dispatched.", "optional": true, "$ref": "UI.FrameId" }
+          ]
         },
         {
           "name": "insertText",
-          "description": "Inserts text at the current input focus.",
+          "description": "Inserts text at the current input focus. resolveOn idle past idleTimeoutMs: TIMEOUT (the input was already dispatched).",
           "scope": "session",
           "parameters": [
-            { "name": "text", "type": "string" }
+            { "name": "text", "type": "string" },
+            { "name": "resolveOn", "description": "Default: frameCommitted.", "optional": true, "$ref": "ResolveOn" },
+            { "name": "idleTimeoutMs", "description": "For resolveOn idle. Default: a server setting.", "optional": true, "type": "integer", "format": "uint32" }
           ],
-          "returns": []
+          "returns": [
+            { "name": "frameId", "description": "Absent for resolveOn dispatched.", "optional": true, "$ref": "UI.FrameId" }
+          ]
         }
       ]
     },
@@ -316,7 +420,7 @@
         { "id": "UploadId", "description": "Opaque ID of an upload on this connection.", "type": "string" },
         {
           "id": "InstallSource",
-          "description": "Tagged union on kind. A server rejects a kind it does not know with an error.",
+          "description": "Tagged union on kind. A server rejects a kind it does not know with INVALID_PARAMS.",
           "type": "object",
           "discriminator": "kind",
           "variants": [
