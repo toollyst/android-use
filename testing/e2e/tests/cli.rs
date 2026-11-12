@@ -125,7 +125,8 @@ fn a_wrong_reason_exits_1() {
 fn a_component_that_appears_breaks_the_declared_red() {
     // The fixture "server" exists, so the scenario gets past its needs; its declared RED no
     // longer holds and the run fails until the manifest and the scenario body are updated.
-    let fx = fixture(MANIFEST);
+    // (An id without a body in bodies.rs: a real body would start the fixture "server".)
+    let fx = fixture(&MANIFEST.replace("adp.hello.compatible", "adp.fixture.no-body"));
     let mut c = e2e(fx.path(), &["adp"]);
     c.env(
         "DROIDUSE_E2E_HOST_ENTRYPOINTS_ADP_SERVER",

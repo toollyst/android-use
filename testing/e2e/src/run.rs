@@ -141,8 +141,8 @@ pub fn check_needs(
     Ok(unmet)
 }
 
-/// The run of a scenario whose needs are all met. No scenario body is written yet (none
-/// of the components exists); this is the one place that says so, as a named RED.
+/// The run of a scenario whose needs are all met but that has no body (`bodies.rs`) yet:
+/// the one place that says so, as a named RED.
 pub fn body_not_written() -> Observed {
     let need = Need::Surface {
         component: "testing/e2e".to_string(),
@@ -155,11 +155,21 @@ pub fn body_not_written() -> Observed {
     }
 }
 
-/// The standard scenario run: needs first, then the body.
+/// The standard scenario run without bodies: needs first, then [`body_not_written`].
 pub fn observe(
     s: &Scenario,
     adp: &BTreeSet<String>,
     env: &dyn Fn(&str) -> Option<OsString>,
+) -> Observed {
+    observe_with(s, adp, env, &|_| None)
+}
+
+/// Needs first, then the scenario's body; `body` answers `None` for a scenario without one.
+pub fn observe_with(
+    s: &Scenario,
+    adp: &BTreeSet<String>,
+    env: &dyn Fn(&str) -> Option<OsString>,
+    body: &dyn Fn(&Scenario) -> Option<Observed>,
 ) -> Observed {
     match check_needs(s, adp, env) {
         Err(m) => Observed::Fail(m),
@@ -167,7 +177,7 @@ pub fn observe(
             reason: unmet[0].clone(),
             unmet,
         },
-        Ok(_) => body_not_written(),
+        Ok(_) => body(s).unwrap_or_else(body_not_written),
     }
 }
 

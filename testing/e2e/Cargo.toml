@@ -14,9 +14,13 @@ name = "e2e"
 path = "src/main.rs"
 
 [dependencies]
+# The protocol version only; the components themselves run as separate processes.
+droiduse-contracts-adp = { path = "../../contracts/adp" }
+futures-util.workspace = true
+rmcp = { workspace = true, features = ["client", "transport-child-process"] }
 serde.workspace = true
 serde_json.workspace = true
-toml.workspace = true
-
-[dev-dependencies]
 tempfile.workspace = true
+tokio = { workspace = true, features = ["io-util", "net", "process", "time"] }
+tokio-tungstenite.workspace = true
+toml.workspace = true

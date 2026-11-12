@@ -8,5 +8,7 @@
 //! that need as its reason. The components are separate processes located through
 //! explicit paths in environment variables.
 
+pub mod bodies;
+pub mod harness;
 pub mod manifest;
 pub mod run;

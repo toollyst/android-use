@@ -27,7 +27,12 @@ prefix (`adp.auth`).
   Matching is strict: a RED for another reason, an unexpected PASS, any other error, a panic
   or a timeout is FAIL. Nothing is skipped: an unmet need is a RED named after it.
 - Components run as separate processes, located only through `DROIDUSE_E2E_<COMPONENT PATH>`
-  (`host/entrypoints/adp_server` → `DROIDUSE_E2E_HOST_ENTRYPOINTS_ADP_SERVER`).
+  (`host/entrypoints/adp_server` → `DROIDUSE_E2E_HOST_ENTRYPOINTS_ADP_SERVER`). `run.sh`
+  builds the component binaries that exist and sets their variables unless they are already
+  set.
+- A scenario whose needs are met runs its body (`src/bodies.rs`): it starts the real
+  processes (`src/harness.rs`), drives them over the wire and kills them when it ends, also on
+  failure or timeout. A scenario without a body is RED `missing:testing/e2e#scenario-body`.
 - Exit status: 0 = no FAIL, 1 = at least one FAIL, 2 = the run could not start. The report of
   the RED scenarios (the remaining work, with every unmet need) is written to
   `target/e2e/report.json` (`--report <file>` to change it).

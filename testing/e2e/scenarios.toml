@@ -59,8 +59,7 @@ milestone = "m0"
 scope = "Channel authentication"
 tags = ["adp", "auth", "security"]
 needs = ["contracts/adp#Connection.hello", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.auth.upgrade-invalid-token"
@@ -69,8 +68,7 @@ milestone = "m0"
 scope = "Channel authentication"
 tags = ["adp", "auth", "security"]
 needs = ["contracts/adp#UNAUTHENTICATED", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.auth.upgrade-rate-limit"
@@ -78,9 +76,9 @@ title = "Failed upgrades over the rate limit get HTTP 429 with Retry-After"
 milestone = "m0"
 scope = "Channel authentication"
 tags = ["adp", "auth", "security"]
-needs = ["host/entrypoints/adp_server"]
+needs = ["host/entrypoints/adp_server#rate-limit", "host/entrypoints/adp_server"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:host/entrypoints/adp_server#rate-limit"
 
 [[scenario]]
 id = "adp.auth.first-message"
@@ -89,8 +87,7 @@ milestone = "m0"
 scope = "Channel authentication"
 tags = ["adp", "auth", "security"]
 needs = ["contracts/adp#Connection.auth", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.auth.first-message-invalid"
@@ -99,8 +96,7 @@ milestone = "m0"
 scope = "Channel authentication"
 tags = ["adp", "auth", "security", "close-codes"]
 needs = ["contracts/adp#Connection.auth", "contracts/adp#UNAUTHENTICATED", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.auth.first-message-rate-limit"
@@ -108,9 +104,9 @@ title = "Connection.auth failures over the rate limit close the connection with 
 milestone = "m0"
 scope = "Channel authentication"
 tags = ["adp", "auth", "security", "close-codes"]
-needs = ["contracts/adp#Connection.auth", "host/entrypoints/adp_server"]
+needs = ["host/entrypoints/adp_server#rate-limit", "contracts/adp#Connection.auth", "host/entrypoints/adp_server"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:host/entrypoints/adp_server#rate-limit"
 
 [[scenario]]
 id = "adp.auth.deadline"
@@ -118,9 +114,9 @@ title = "A connection not authenticated within the authentication deadline is cl
 milestone = "m0"
 scope = "Channel authentication"
 tags = ["adp", "auth", "security", "close-codes"]
-needs = ["host/entrypoints/adp_server"]
+needs = ["host/entrypoints/adp_server#auth-deadline", "host/entrypoints/adp_server"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:host/entrypoints/adp_server#auth-deadline"
 
 [[scenario]]
 id = "adp.auth.before-auth-rejected"
@@ -129,8 +125,7 @@ milestone = "m0"
 scope = "Channel authentication"
 tags = ["adp", "auth", "security"]
 needs = ["contracts/adp#UNAUTHENTICATED", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.auth.query-token-rejected"
@@ -139,8 +134,7 @@ milestone = "m0"
 scope = "Channel authentication"
 tags = ["adp", "auth", "security"]
 needs = ["host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.auth.second-auth-rejected"
@@ -149,8 +143,7 @@ milestone = "m0"
 scope = "Channel authentication"
 tags = ["adp", "auth", "security"]
 needs = ["contracts/adp#Connection.auth", "contracts/adp#INVALID_REQUEST", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.auth.token-file"
@@ -158,9 +151,8 @@ title = "The token the server reads from the per-user token file authenticates, 
 milestone = "m0"
 scope = "Channel authentication"
 tags = ["adp", "auth", "security"]
-needs = ["host/entrypoints/adp_server#token-file", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server#token-file"
+needs = ["host/entrypoints/adp_server"]
+expect = "pass"
 
 [[scenario]]
 id = "adp.transport.local-endpoint"
@@ -189,8 +181,7 @@ milestone = "m0"
 scope = "gate:M0"
 tags = ["adp", "hello"]
 needs = ["contracts/adp#Connection.hello", "contracts/adp#INVALID_REQUEST", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.hello.second-rejected"
@@ -199,8 +190,7 @@ milestone = "m0"
 scope = "gate:M0"
 tags = ["adp", "hello"]
 needs = ["contracts/adp#Connection.hello", "contracts/adp#INVALID_REQUEST", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.hello.compatible"
@@ -209,8 +199,7 @@ milestone = "m0"
 scope = "gate:M0"
 tags = ["adp", "hello"]
 needs = ["contracts/adp#Connection.hello", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.hello.unsupported-version"
@@ -219,8 +208,7 @@ milestone = "m0"
 scope = "gate:M0"
 tags = ["adp", "hello", "close-codes"]
 needs = ["contracts/adp#Connection.hello", "contracts/adp#UNSUPPORTED_VERSION", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.envelope.malformed"
@@ -229,8 +217,7 @@ milestone = "m0"
 scope = "gate:M0"
 tags = ["adp", "envelope"]
 needs = ["contracts/adp#INVALID_REQUEST", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.envelope.id-range"
@@ -239,8 +226,7 @@ milestone = "m0"
 scope = "gate:M0"
 tags = ["adp", "envelope"]
 needs = ["contracts/adp#INVALID_REQUEST", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.envelope.duplicate-id"
@@ -248,9 +234,9 @@ title = "An id that duplicates an in-flight request is INVALID_REQUEST"
 milestone = "m0"
 scope = "gate:M0"
 tags = ["adp", "envelope"]
-needs = ["contracts/adp#INVALID_REQUEST", "host/entrypoints/adp_server"]
+needs = ["host/entrypoints/adp_server#concurrent-requests", "contracts/adp#INVALID_REQUEST", "host/entrypoints/adp_server"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:host/entrypoints/adp_server#concurrent-requests"
 
 [[scenario]]
 id = "adp.envelope.session-scope"
@@ -259,8 +245,7 @@ milestone = "m0"
 scope = "gate:M0"
 tags = ["adp", "envelope"]
 needs = ["contracts/adp#Target.getTargets", "contracts/adp#INVALID_REQUEST", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.envelope.unknown-method"
@@ -269,8 +254,7 @@ milestone = "m0"
 scope = "gate:M0"
 tags = ["adp", "envelope"]
 needs = ["contracts/adp#METHOD_NOT_FOUND", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.envelope.invalid-params"
@@ -280,7 +264,7 @@ scope = "gate:M0"
 tags = ["adp", "envelope"]
 needs = ["contracts/adp#INVALID_PARAMS", "host/entrypoints/adp_server"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "host/vmm/api#create"
 
 [[scenario]]
 id = "adp.close.message-too-big"
@@ -288,9 +272,9 @@ title = "A message above the maximum message size closes the connection with sta
 milestone = "m0"
 scope = "gate:M0"
 tags = ["adp", "close-codes"]
-needs = ["host/entrypoints/adp_server"]
+needs = ["host/entrypoints/adp_server#max-message-size", "host/entrypoints/adp_server"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:host/entrypoints/adp_server#max-message-size"
 
 [[scenario]]
 id = "adp.close.uncorrelated-binary"
@@ -299,8 +283,7 @@ milestone = "m0"
 scope = "gate:M0"
 tags = ["adp", "close-codes", "binary"]
 needs = ["contracts/adp#App.uploadChunk", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+expect = "pass"
 
 [[scenario]]
 id = "adp.keepalive.unanswered-pings"
@@ -308,9 +291,9 @@ title = "The server pings at the keepalive interval and closes the connection af
 milestone = "m0"
 scope = "gate:M0"
 tags = ["adp", "keepalive"]
-needs = ["host/entrypoints/adp_server"]
+needs = ["host/entrypoints/adp_server#keepalive", "host/entrypoints/adp_server"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:host/entrypoints/adp_server#keepalive"
 
 [[scenario]]
 id = "trace.adp.traceparent-linked"
@@ -318,9 +301,8 @@ title = "A valid client traceparent starts a new server trace linked to the clie
 milestone = "m0"
 scope = "Single trace (Perfetto)"
 tags = ["adp", "trace", "security"]
-needs = ["host/base/trace#export", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/base/trace#export"
+needs = ["host/entrypoints/adp_server"]
+expect = "pass"
 
 [[scenario]]
 id = "trace.adp.traceparent-invalid-ignored"
@@ -328,9 +310,8 @@ title = "An invalid traceparent (bad format, all-zero trace-id or parent-id) is 
 milestone = "m0"
 scope = "Single trace (Perfetto)"
 tags = ["adp", "trace", "security"]
-needs = ["host/base/trace#export", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/base/trace#export"
+needs = ["host/entrypoints/adp_server"]
+expect = "pass"
 
 [[scenario]]
 id = "trace.adp.tracestate-ignored"
@@ -349,8 +330,7 @@ milestone = "m0"
 scope = "gate:M0"
 tags = ["mcp"]
 needs = ["clients/mcp"]
-expect = "red"
-reason = "missing:clients/mcp"
+expect = "pass"
 
 [[scenario]]
 id = "mcp.tools.list"
@@ -360,7 +340,7 @@ scope = "gate:M0"
 tags = ["mcp"]
 needs = ["clients/mcp"]
 expect = "red"
-reason = "missing:clients/mcp"
+reason = "missing:clients/mcp#observe"
 
 [[scenario]]
 id = "mcp.adp.authenticated"
@@ -368,9 +348,9 @@ title = "The MCP server reaches the ADP server only with the per-user token; wit
 milestone = "m0"
 scope = "Channel authentication"
 tags = ["mcp", "adp", "auth", "security"]
-needs = ["host/entrypoints/adp_server#token-file", "clients/mcp", "host/entrypoints/adp_server"]
+needs = ["clients/mcp#unauthenticated-code", "clients/mcp", "host/entrypoints/adp_server"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server#token-file"
+reason = "missing:clients/mcp#unauthenticated-code"
 
 [[scenario]]
 id = "gate.probe.unimplemented"
@@ -379,8 +359,7 @@ milestone = "m0"
 scope = "gate:M0"
 tags = ["gate", "mcp", "adp"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UNIMPLEMENTED", "clients/mcp", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:clients/mcp"
+expect = "pass"
 
 [[scenario]]
 id = "gate.probe.one-trace"
@@ -388,9 +367,8 @@ title = "Gate probe: one trace id runs through clients/mcp, adp_server, services
 milestone = "m0"
 scope = "Single trace (Perfetto)"
 tags = ["gate", "trace", "mcp", "adp"]
-needs = ["contracts/adp#Target.createTarget", "host/base/trace#export", "clients/mcp", "host/entrypoints/adp_server"]
-expect = "red"
-reason = "missing:host/base/trace#export"
+needs = ["contracts/adp#Target.createTarget", "clients/mcp", "host/entrypoints/adp_server"]
+expect = "pass"
 
 # ---------------------------------------------------------------------------------------
 # M1: production-quality boot, screen, input, network, security posture
@@ -404,7 +382,7 @@ scope = "Android boot (boot.img/vendor_boot/bootconfig)"
 tags = ["adp", "instance", "boot"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Target.targetCreated", "host/entrypoints/adp_server", "guest/image"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "instance.close"
@@ -414,7 +392,7 @@ scope = "Android boot (boot.img/vendor_boot/bootconfig)"
 tags = ["adp", "instance"]
 needs = ["contracts/adp#Target.closeTarget", "contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "instance.concurrent"
@@ -424,7 +402,7 @@ scope = "Android boot (boot.img/vendor_boot/bootconfig)"
 tags = ["adp", "instance"]
 needs = ["contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "instance.cli"
@@ -484,7 +462,7 @@ scope = "Screen output (gfxstream)"
 tags = ["adp", "screen"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Screen.getDisplays", "host/entrypoints/adp_server", "guest/image"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "screen.home-screenshot"
@@ -494,7 +472,7 @@ scope = "Screen output (gfxstream)"
 tags = ["adp", "screen"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Screen.captureScreenshot", "host/entrypoints/adp_server", "guest/image"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "screen.hardware-renderer"
@@ -524,7 +502,7 @@ scope = "Coordinate input"
 tags = ["adp", "input"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.dispatchTouch", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "input.touch.multi-pointer"
@@ -534,7 +512,7 @@ scope = "Coordinate input"
 tags = ["adp", "input"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.dispatchTouch", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "input.key.back"
@@ -544,7 +522,7 @@ scope = "Coordinate input"
 tags = ["adp", "input"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.dispatchKey", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "input.insert-text"
@@ -554,7 +532,7 @@ scope = "Coordinate input"
 tags = ["adp", "input"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.insertText", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "adp.authz.targets-filtered"
@@ -588,7 +566,7 @@ scope = "GPT composite disk + CoW layers"
 tags = ["adp", "disk", "app"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.install", "contracts/adp#App.list", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "network.usernet-egress"
@@ -598,7 +576,7 @@ scope = "Network (usernet)"
 tags = ["adp", "network"]
 needs = ["contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/webview"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "ui.tree.view"
@@ -608,7 +586,7 @@ scope = "View tree"
 tags = ["adp", "tree"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "ui.tree.a11y"
@@ -618,7 +596,7 @@ scope = "Accessibility tree"
 tags = ["adp", "tree"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "ui.tree.full-ax-tree"
@@ -638,7 +616,7 @@ scope = "Compose semantics"
 tags = ["adp", "tree", "compose"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/compose"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "ui.tree.unified"
@@ -648,7 +626,7 @@ scope = "Unified tree merge"
 tags = ["adp", "tree"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/compose"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "ui.selector.engines"
@@ -658,7 +636,7 @@ scope = "Unified tree merge"
 tags = ["adp", "selector"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.querySelector", "contracts/adp#UI.querySelectorAll", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "ui.selector.invalid"
@@ -668,7 +646,7 @@ scope = "Unified tree merge"
 tags = ["adp", "selector"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.querySelector", "host/entrypoints/adp_server", "guest/image"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "ui.describe"
@@ -688,7 +666,7 @@ scope = "Stable node IDs"
 tags = ["adp", "tree", "node-id"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "ui.node-id.not-reused"
@@ -698,7 +676,7 @@ scope = "Stable node IDs"
 tags = ["adp", "tree", "node-id"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "ui.node-id.gone"
@@ -708,7 +686,7 @@ scope = "Stable node IDs"
 tags = ["adp", "tree", "node-id"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getNode", "contracts/adp#NODE_GONE", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "ui.diff.apply"
@@ -718,7 +696,7 @@ scope = "Tree diff events"
 tags = ["adp", "tree", "diff"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.treeMutated", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "ui.diff.chain"
@@ -728,7 +706,7 @@ scope = "Tree diff events"
 tags = ["adp", "tree", "diff"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.treeMutated", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "frame.tree-screenshot-agree"
@@ -738,7 +716,7 @@ scope = "frameId synchronization"
 tags = ["adp", "frame", "screen"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "contracts/adp#Screen.captureScreenshot", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "frame.expired"
@@ -748,7 +726,7 @@ scope = "frameId synchronization"
 tags = ["adp", "frame", "screen"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Screen.captureScreenshot", "contracts/adp#FRAME_EXPIRED", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "frame.input-resolve-on"
@@ -758,7 +736,7 @@ scope = "frameId synchronization"
 tags = ["adp", "frame", "input"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.click", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "ui.window.changed"
@@ -808,7 +786,7 @@ scope = "Node-based actions"
 tags = ["adp", "input", "action"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.click", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "input.click.touch"
@@ -818,7 +796,7 @@ scope = "Node-based actions"
 tags = ["adp", "input", "action"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.click", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "input.click.auto"
@@ -828,7 +806,7 @@ scope = "Node-based actions"
 tags = ["adp", "input", "action"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.click", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "input.long-click"
@@ -838,7 +816,7 @@ scope = "Node-based actions"
 tags = ["adp", "input", "action"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.longClick", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "input.click.not-actionable"
@@ -848,7 +826,7 @@ scope = "Node-based actions"
 tags = ["adp", "input", "action"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Input.click", "contracts/adp#NOT_ACTIONABLE", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "a11y.perform-action"
@@ -858,7 +836,7 @@ scope = "Node-based actions"
 tags = ["adp", "action"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Accessibility.performAction", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "input.set-text"
@@ -908,7 +886,7 @@ scope = "gate:M2"
 tags = ["adp", "envelope"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Target.attachToTarget", "host/entrypoints/adp_server", "guest/image"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "screen.capture.region"
@@ -918,7 +896,7 @@ scope = "Screenshots (for a given frameId)"
 tags = ["adp", "screen"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Screen.captureScreenshot", "host/entrypoints/adp_server", "guest/image"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "screen.capture.transfer"
@@ -928,7 +906,7 @@ scope = "Screenshots (for a given frameId)"
 tags = ["adp", "screen", "binary"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Screen.captureScreenshot", "host/entrypoints/adp_server", "guest/image"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "app.install.upload"
@@ -938,7 +916,7 @@ scope = "App install · launch · stop · list"
 tags = ["adp", "app", "binary"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.createUpload", "contracts/adp#App.uploadChunk", "contracts/adp#App.finishUpload", "contracts/adp#App.install", "contracts/adp#App.list", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "app.install.split"
@@ -948,7 +926,7 @@ scope = "App install · launch · stop · list"
 tags = ["adp", "app"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.install", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "app.upload.limits"
@@ -958,7 +936,7 @@ scope = "App install · launch · stop · list"
 tags = ["adp", "app", "binary"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.createUpload", "contracts/adp#App.uploadChunk", "host/entrypoints/adp_server", "guest/image"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "app.upload.sha-mismatch"
@@ -968,7 +946,7 @@ scope = "App install · launch · stop · list"
 tags = ["adp", "app", "binary"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.finishUpload", "host/entrypoints/adp_server", "guest/image"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "app.upload.lifetime"
@@ -978,7 +956,7 @@ scope = "App install · launch · stop · list"
 tags = ["adp", "app", "security"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.createUpload", "contracts/adp#App.install", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "app.install.failure"
@@ -988,7 +966,7 @@ scope = "App install · launch · stop · list"
 tags = ["adp", "app"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.install", "contracts/adp#NOT_ACTIONABLE", "host/entrypoints/adp_server", "guest/image"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "app.launch"
@@ -998,7 +976,7 @@ scope = "App install · launch · stop · list"
 tags = ["adp", "app"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#App.launch", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "app.stop"
@@ -1048,7 +1026,7 @@ scope = "View tree"
 tags = ["mcp", "tree", "screen"]
 needs = ["contracts/adp#Target.createTarget", "clients/mcp", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:clients/mcp"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "mcp.act.node"
@@ -1058,7 +1036,7 @@ scope = "Node-based actions"
 tags = ["mcp", "action"]
 needs = ["contracts/adp#Target.createTarget", "clients/mcp", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:clients/mcp"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "mcp.act.coordinates"
@@ -1068,7 +1046,7 @@ scope = "Coordinate input"
 tags = ["mcp", "input"]
 needs = ["contracts/adp#Target.createTarget", "clients/mcp", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:clients/mcp"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "mcp.wait-for"
@@ -1078,7 +1056,7 @@ scope = "Tree diff events"
 tags = ["mcp", "diff"]
 needs = ["contracts/adp#Target.createTarget", "clients/mcp", "host/entrypoints/adp_server", "guest/image", "testing/testapps/views"]
 expect = "red"
-reason = "missing:clients/mcp"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "mcp.screenshot"
@@ -1088,7 +1066,7 @@ scope = "Screenshots (for a given frameId)"
 tags = ["mcp", "screen"]
 needs = ["contracts/adp#Target.createTarget", "clients/mcp", "host/entrypoints/adp_server", "guest/image"]
 expect = "red"
-reason = "missing:clients/mcp"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "mcp.app-tools"
@@ -1216,7 +1194,7 @@ scope = "Flutter / RN semantics"
 tags = ["adp", "tree"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/flutter"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "ui.tree.react-native"
@@ -1226,7 +1204,7 @@ scope = "Flutter / RN semantics"
 tags = ["adp", "tree"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/rn"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "ui.tree.layers"
@@ -1236,7 +1214,7 @@ scope = "Layer tree (games, etc.)"
 tags = ["adp", "tree", "layer"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#UI.getTree", "host/entrypoints/adp_server", "guest/image", "testing/testapps/gl"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "screen.capture.layer"
@@ -1246,7 +1224,7 @@ scope = "Layer tree (games, etc.)"
 tags = ["adp", "screen", "layer"]
 needs = ["contracts/adp#Target.createTarget", "contracts/adp#Screen.captureScreenshot", "host/entrypoints/adp_server", "guest/image", "testing/testapps/gl"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "security.guest.webview-debug"
@@ -1256,7 +1234,7 @@ scope = "WebView CDP relay"
 tags = ["adp", "security", "webview"]
 needs = ["contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/webview", "testing/testapps/exposure_probe"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "security.guest.inspector"
@@ -1266,7 +1244,7 @@ scope = "View tree"
 tags = ["adp", "security"]
 needs = ["contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/exposure_probe"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"
 
 [[scenario]]
 id = "security.guest.agent"
@@ -1276,4 +1254,4 @@ scope = "Accessibility tree"
 tags = ["adp", "security"]
 needs = ["contracts/adp#Target.createTarget", "host/entrypoints/adp_server", "guest/image", "testing/testapps/exposure_probe"]
 expect = "red"
-reason = "missing:host/entrypoints/adp_server"
+reason = "missing:guest/image"

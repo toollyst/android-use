@@ -17,6 +17,7 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Duration;
 
+use droiduse_testing_e2e::bodies;
 use droiduse_testing_e2e::manifest::{self, Reason};
 use droiduse_testing_e2e::run::{self, Verdict};
 
@@ -87,7 +88,14 @@ fn main_inner() -> Result<ExitCode, String> {
     let adp = Arc::new(run::adp_surfaces(&read(
         &a.root.join("contracts/adp/protocol.json"),
     )?)?);
-    let runner: run::Runner = Arc::new(move |s| run::observe(s, &adp, &|v| std::env::var_os(v)));
+    // A body gets most of the scenario timeout, so that it ends, and kills its child
+    // processes, before the runner gives up on it.
+    let body_limit =
+        Duration::from_secs(m.timeout_s.saturating_mul(3) / 4).max(Duration::from_secs(1));
+    let runner: run::Runner = Arc::new(move |s| {
+        let env = |v: &str| std::env::var_os(v);
+        run::observe_with(s, &adp, &env, &|s| bodies::run(s, &env, body_limit))
+    });
     let results = run::run(&selected, Duration::from_secs(m.timeout_s), runner);
 
     for (s, v) in &results {
