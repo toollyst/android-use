@@ -13,7 +13,7 @@
 #
 # exclude:
 #  - contracts/{codegen,compat}: generator config and compat fixtures.
-#  - third_party: upstream code is not ours (ADR-0003); it is never a workspace
+#  - third_party: upstream code is not ours (CLAUDE.md §1.7, docs/08-upstream-and-patches.md); it is never a workspace
 #    member and is not linted as our code by clippy.
 [workspace]
 resolver = "3"
