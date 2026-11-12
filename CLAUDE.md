@@ -1,81 +1,81 @@
-# CLAUDE.md: 코딩 에이전트 작업 규칙
+# CLAUDE.md: working rules for coding agents
 
-이 파일은 이 레포에서 작업하는 모든 코딩 에이전트(와 사람)를 위한 규칙이다.
-규칙과 다른 판단이 필요하거나 작업 중 새로 할 일이 생기면 **코드를 쓰기 전에** 멈추고 사용자에게 직접 질문해 허락을 받는다.
-선택지를 제시할 때는 최종 제품의 품질·정확성·보안만 기준으로 추천한다. 구현 비용·일정·우회 편의는 추천 근거가 아니다.
+This file holds the rules for every coding agent (and person) working in this repository.
+When a judgment that departs from these rules is needed, or new work comes up during a task, stop **before writing code**, ask the maintainers directly and get their approval.
+When presenting options, recommend only by the quality, correctness and security of the final product. Implementation cost, schedule and workaround convenience are not grounds for a recommendation.
 
 ---
 
-## 0. 먼저 읽을 것 (순서대로)
-1. `docs/01-principles.md`: 불변 원칙
-2. `docs/02-architecture.md`: 레이어와 의존 규칙
-3. `docs/03-contracts.md`: 경계 계약
-4. 작업 대상 레이어의 `README.md`와 `LAYER.toml`
-5. `docs/scope.md`: 지금 채우는 칸이 어디인지
-6. ADP 관련 작업이면 `docs/04-adp.md`
+## 0. Read first (in order)
+1. `docs/01-principles.md`: invariant principles
+2. `docs/02-architecture.md`: layers and dependency rules
+3. `docs/03-contracts.md`: boundary contracts
+4. The `README.md` and `LAYER.toml` of the layer you are working on
+5. `docs/scope.md`: which cell you are filling now
+6. `docs/04-adp.md` for ADP-related work
 
-## 1. 절대 규칙
-1. **QEMU 금지.** QEMU 코드, 바이너리, 런타임 의존을 어떤 형태로도 들이지 않는다.
-2. **우회 금지.** "일단 되게" 하는 임시 경로(AVB 끄기, SELinux permissive, adb 의존 제어, 소프트웨어 렌더링 고정 등)를 기본 경로로 만들지 않는다. 디버그 전용이면 `debug` 빌드 플래그 뒤에 두고 문서에 명시한다.
-3. **레이어 의존은 위에서 아래로만.** 같은 레이어의 형제 모듈끼리는 직접 의존하지 않는다. 예외는 레이어 루트 `LAYER.toml`에 선언한 단방향 간선뿐이다. 경계는 `contracts/`로만 넘는다. (`LAYERS.toml`, `build/checklayers`)
-4. **`host/vmm/`와 `host/devices/`는 Android를 모른다.** Android 개념(패키지, Activity, View 등)이 L2에 들어오면 위반이다.
-5. **코어는 테넌트를 모른다.** 테넌트, 과금, 플랜 같은 개념은 코어에 없다. 필요하면 `labels`(불투명 map)와 SPI로 해결한다. SaaS 코드는 이 레포에 넣지 않는다.
-6. **모든 채널은 인증한다.** "localhost라서 신뢰"를 가정하지 않는다.
-7. **upstream 코드는 직접 수정하지 않는다.** `third_party/<x>/patches/`의 패치로만 바꾸고, 패치에는 hook 지점만 넣는다. 로직은 우리 레이어(ext/overlay)에 둔다.
+## 1. Absolute rules
+1. **No QEMU.** QEMU code, binaries and runtime dependencies are not brought in in any form.
+2. **No workarounds.** Temporary paths that "just make it work" (turning AVB off, SELinux permissive, adb-dependent control, pinned software rendering, etc.) are never made the default path. If something is debug-only, put it behind the `debug` build flag and state it in the docs.
+3. **Layer dependencies go only from top to bottom.** Sibling modules in the same layer do not depend on each other directly. The only exceptions are one-way edges declared in the layer-root `LAYER.toml`. Boundaries are crossed only through `contracts/`. (`LAYERS.toml`, `build/checklayers`)
+4. **`host/vmm/` and `host/devices/` do not know Android.** An Android concept (package, Activity, View, etc.) in L2 is a violation.
+5. **The core does not know tenants.** Concepts such as tenants, billing and plans do not exist in the core. If needed, solve it with `labels` (an opaque map) and the SPI. SaaS code does not go into this repository.
+6. **Every channel is authenticated.** Never assume "it is localhost, so it is trusted".
+7. **Upstream code is never modified directly.** Change it only through patches in `third_party/<x>/patches/`, and put only hook points in the patches. The logic lives in our layers (ext/overlay).
 
-## 2. 코드를 어디에 둘지 결정하기
+## 2. Deciding where code goes
 ```
-upstream 동작을 바꿔야 하나?
- ├─ 예 → hook 지점만 third_party/<x>/patches/ 에 (예산·헤더 규칙 준수)
- │        └─ 실제 로직은 아래 중 하나에
- └─ 아니오 ↓
-VM/virtio 디바이스 수준인가?          → host/vmm/ 또는 host/devices/   (Android 지식 금지)
-게스트(Android) 안에서 돌아가나?      → guest/
-인스턴스 조립·수명주기·스냅샷인가?    → host/runtime/
-도메인 기능(트리, 화면, 입력, 앱…)인가? → host/services/<domain>/
-호스트 실행 진입점(ADP 서버, node, CLI, desktop)인가? → host/entrypoints/
-ADP 클라이언트(MCP, SDK)인가?          → clients/   (contracts/adp만 의존)
-여러 레이어가 공유하는 인터페이스인가? → contracts/
-도메인 지식 없는 공통 유틸인가?       → host/base/
+Does upstream behaviour have to change?
+ ├─ yes → only the hook point, in third_party/<x>/patches/ (follow the budget and header rules)
+ │        └─ the actual logic goes in one of the places below
+ └─ no ↓
+VM/virtio device level?                     → host/vmm/ or host/devices/   (no Android knowledge)
+Runs inside the guest (Android)?            → guest/
+Instance assembly, lifecycle, snapshots?    → host/runtime/
+Domain feature (tree, screen, input, app…)? → host/services/<domain>/
+Host execution entry point (ADP server, node, CLI, desktop)? → host/entrypoints/
+ADP client (MCP, SDK)?                      → clients/   (depends only on contracts/adp)
+Interface shared by several layers?         → contracts/
+Common utility with no domain knowledge?    → host/base/
 ```
-두 곳 이상이 맞아 보이면 계약이 빠진 것이다. 계약부터 제안한다.
+If two or more places look right, a contract is missing. Propose the contract first.
 
-## 3. 작업 단위
-- 문서(`docs/`)에는 로드맵·아키텍처·지향점처럼 추상적이고 명확한 것만 적는다. 구체적인 할 일은 코드나 사용자 지시로 정한다.
-- 한 작업 = **레이어 하나 + 계약 하나**. 여러 레이어를 한 번에 바꿔야 하면 계약 변경 → 각 레이어 구현 순으로 쪼갠다.
-- 작업을 마치면 `docs/scope.md`의 해당 칸 상태를 갱신한다.
-- 구현 전에 E2E 테스트(`testing/e2e/`)에 기대 동작을 먼저 추가한다. 빨간 테스트가 곧 남은 일이다.
+## 3. Unit of work
+- The docs (`docs/`) record only what is abstract and clear, such as the roadmap, the architecture and the direction. Concrete tasks are set by code or by the maintainers' instructions.
+- One task = **one layer + one contract**. If several layers have to change at once, split it into the contract change → the implementation in each layer.
+- When a task is done, update the status of its cell in `docs/scope.md`.
+- Before implementing, add the expected behaviour to the E2E tests (`testing/e2e/`) first. The red tests are the remaining work.
 
-## 4. 계약 변경 절차
-1. `contracts/<name>/`의 스키마/트레이트를 수정하고 semver를 올린다.
-2. 하위호환이 깨지면 `contracts/compat/`에 이전 버전 픽스처를 추가하고 마이그레이션 방침을 적는다.
-3. 계약 양쪽 레이어의 OWNERS 승인이 필요하다. (`OWNERS`)
-4. codegen 결과를 갱신한다 (`build/codegen`).
+## 4. Contract change procedure
+1. Modify the schema/trait in `contracts/<name>/` and bump the semver.
+2. If backward compatibility breaks, add a fixture of the previous version to `contracts/compat/` and write down the migration policy.
+3. Approval by the OWNERS of the layers on both sides of the contract is required. (`OWNERS`)
+4. Update the codegen output (`build/codegen`).
 
-## 5. 패치 작성 절차
-1. `docs/08-upstream-and-patches.md`의 헤더 템플릿을 따른다.
-2. 수정 hunk마다 `droiduse:` 마커 주석을 단다.
-3. 패치 예산(줄 수)을 넘기면 사용자 승인이 필요하다.
-4. 범용 기능이면 upstream PR을 먼저 연다(upstream-first). 패치 헤더에 링크를 남긴다.
-5. `tools/patch/lint.sh`를 통과시킨다.
+## 5. Patch procedure
+1. Follow the header template in `docs/08-upstream-and-patches.md`.
+2. Add a `droiduse:` marker comment to every modified hunk.
+3. Exceeding the patch budget (line count) needs maintainer approval.
+4. For a general-purpose feature, open the upstream PR first (upstream-first). Leave the link in the patch header.
+5. Pass `tools/patch/lint.sh`.
 
-## 6. 검증 (작업 완료 전에 반드시)
-> 아래 명령은 M0(골격)에서 만들어진다. 없으면 만드는 것부터가 작업이다.
+## 6. Verification (always, before finishing a task)
+> The commands below are created in M0 (skeleton). If one does not exist, creating it is the first part of the task.
 ```sh
-cargo xtask check-layers        # 레이어 의존 규칙
+cargo xtask check-layers        # layer dependency rules
 cargo fmt --check && cargo clippy --workspace -- -D warnings
 cargo test --workspace
-tools/patch/lint.sh             # 패치 헤더·마커·예산
-cargo xtask codegen --check     # 계약 codegen 최신 여부
-testing/e2e/run.sh <target>     # 영향 범위 E2E
+tools/patch/lint.sh             # patch header, markers, budget
+cargo xtask codegen --check     # contract codegen is up to date
+testing/e2e/run.sh <target>     # E2E for the affected area
 ```
-게스트 변경은 `tools/sync/aosp-sync.sh` → AOSP 빌드 → `tools/infra/boot-test.sh`까지 확인한다.
+For guest changes, check through `tools/sync/aosp-sync.sh` → AOSP build → `tools/infra/boot-test.sh`.
 
-## 7. 커밋 / PR
-- 커밋 제목: `<layer>/<module>: <요약>` (예: `host/services/inspect: merge compose semantics into unified tree`)
-- 계약 변경 PR과 구현 PR은 분리한다.
-- PR 본문: 바뀐 `scope.md` 칸, 영향 레이어, 검증 결과, 트레이스 스크린샷(성능 관련 시).
+## 7. Commits / PRs
+- Commit title: `<layer>/<module>: <summary>` (e.g. `host/services/inspect: merge compose semantics into unified tree`)
+- Contract change PRs and implementation PRs are separate.
+- PR body: the `scope.md` cells that changed, the affected layers, the verification results, trace screenshots (for performance work).
 
-## 8. 막혔을 때
-- 문제 위치를 모르겠으면 Perfetto 트레이스부터 본다 (`docs/02-architecture.md` §5 증상 → 레이어 표).
-- 결정되지 않은 사항은 `docs/13-roadmap.md`의 "남은 결정"을 확인하고, 임의로 정하지 않고 사용자에게 묻는다.
+## 8. When stuck
+- If you do not know where a problem is, look at a Perfetto trace first (`docs/02-architecture.md` §5, symptom → layer table).
+- For anything undecided, check "Open decisions" in `docs/13-roadmap.md`; do not decide it yourself, ask the maintainers.

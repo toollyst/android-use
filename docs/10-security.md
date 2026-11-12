@@ -1,60 +1,60 @@
-# 10. 보안
+# 10. Security
 
-## 1. 위협 모델
-- **신뢰하지 않음**: 게스트 전체(앱, AI가 실행한 행동, 게스트 커널 포함), 외부 ADP 클라이언트(인증 전)
-- **보호 대상**: 호스트, 다른 세션, 호스트 키와 시크릿, 다른 테넌트(SaaS)
-- 가정: 게스트는 언제든 악의적인 virtio 입력과 guest_link 메시지를 보낼 수 있다.
+## 1. Threat model
+- **Untrusted**: the entire guest (apps, actions the AI performed, the guest kernel included), external ADP clients (before authentication)
+- **Protected**: the host, other sessions, host keys and secrets, other tenants (SaaS)
+- Assumption: the guest can send malicious virtio input and guest_link messages at any time.
 
-## 2. 격리
-| 대상 | 방법 |
+## 2. Isolation
+| Target | Method |
 |---|---|
-| 게스트 ↔ 호스트 | microVM (KVM / HVF / WHP) |
-| VMM 프로세스 | `host/runtime/jail`: Linux jailer, macOS seatbelt/App Sandbox, Windows AppContainer |
-| 디바이스 백엔드 | **각각 별도 프로세스, 각각 최소 권한 샌드박스.** 공격면이 가장 큰 gpu는 가장 강하게 |
-| 호스트 KeyMint | 별도 프로세스, 전용 샌드박스, 호스트 보안 저장소 외 접근 없음 (`host/runtime/keymint`) |
-| 세션 ↔ 세션 | 인스턴스별 프로세스 집합, 별도 디스크 CoW 레이어, 별도 토큰 |
-| 네트워크 | usernet 기본 차단 + allowlist 정책, 세션별 egress 로깅 |
+| Guest ↔ host | microVM (KVM / HVF / WHP) |
+| VMM process | `host/runtime/jail`: Linux jailer, macOS seatbelt/App Sandbox, Windows AppContainer |
+| Device backends | **Each a separate process, each in a least-privilege sandbox.** The gpu, with the largest attack surface, gets the strongest one |
+| Host KeyMint | Separate process, dedicated sandbox, no access beyond the host secure storage (`host/runtime/keymint`) |
+| Session ↔ session | A process set per instance, separate disk CoW layers, separate tokens |
+| Network | usernet blocks by default + allowlist policy, per-session egress logging |
 
-## 3. 게스트 보안
-- user 빌드, adbd 기본 off (호스트 인가로만 활성, CTS/VTS 전용)
-- AVB 자체 키, rollback index
-- SELinux enforcing, 신규 컴포넌트마다 전용 도메인
-- KeyMint는 호스트(`host/runtime/keymint`, 별도 jailed 프로세스)에서 실행, 키는 호스트 보안 저장소로 래핑 (Secure Enclave / TPM)
-- 복제 고유성: VMGenID + restore hook (`docs/07-runtime.md` §4)
+## 3. Guest security
+- user build, adbd off by default (enabled only by host authorization, for CTS/VTS only)
+- AVB with our own keys, rollback index
+- SELinux enforcing, a dedicated domain for every new component
+- KeyMint runs on the host (`host/runtime/keymint`, a separate jailed process); keys are wrapped by the host secure storage (Secure Enclave / TPM)
+- Clone uniqueness: VMGenID + restore hook (`docs/07-runtime.md` §4)
 
-## 4. 채널 보안
-- 모든 채널 인증 (ADP, Node API, 스트림, guest_link 세션 토큰)
-- guest_link는 버전 협상과 메시지 크기 제한, 스키마 검증 후 처리. 크기 제한은 채널마다 호스트·게스트 설정이고 기본값은 gRPC 기본값(4 MiB)이다
+## 4. Channel security
+- Every channel is authenticated (ADP, Node API, streams, guest_link session token)
+- guest_link processes a message only after version negotiation, the message size limit and schema validation. The size limit is a host and guest setting per channel, and its default is the gRPC default (4 MiB)
 - guest_link channels: two gRPC channels on two vsock ports. On the host channel the host is the server (guest → host services); on the guest channel adpd is the server (host → guest services). Every call carries W3C `traceparent`
 - guest_link guest channel port: only adpd's SELinux domain may use listening vsock sockets; every other domain is denied `vsock_socket` `listen` by a sepolicy `neverallow`. SELinux has no per-port labelling for vsock (the kernel checks `name_bind` only for inet sockets), so the rule is per domain. Debug builds only: adbd over vsock is also allowed
 - guest_link authentication: every call on both channels carries the session token in binary metadata (`droiduse-session-token-bin`); that is the authentication, and there is no separate authentication call. No call is accepted without it; a missing or invalid token gets gRPC `UNAUTHENTICATED`
-- guest_link 첫 토큰: VMM이 토큰을 담은 작은 전용 비밀 디스크를 붙이고, 그 디스크는 adpd의 SELinux 도메인만 읽을 수 있다. `Auth.Rebind`가 restore 뒤마다 토큰을 바꾼다
-- ADP 인증: 업그레이드의 `Authorization: Bearer` 헤더 또는 첫 메시지 `Connection.auth`. 인증 전 메시지는 모두 거부한다. URL 쿼리 문자열의 토큰은 받지 않는다. 인증은 연결당 한 번이고 자격 증명을 바꾸려면 새로 연결한다. 실패한 인증의 rate limiting은 서버 설정이고 기본으로 켜져 있다
+- guest_link first token: the VMM attaches a small dedicated secret disk holding the token, and only adpd's SELinux domain can read that disk. `Auth.Rebind` changes the token after every restore
+- ADP authentication: the `Authorization: Bearer` header of the upgrade or a first message `Connection.auth`. Every message before authentication is rejected. Tokens in the URL query string are not accepted. Authentication happens once per connection, and changing credentials needs a new connection. Rate limiting of failed authentication is a server setting and is on by default
 - ADP authorization: checked at attach and again before every command in a session. A denial answers the command with `POLICY_DENIED` and ends the session (`detachedFromTarget`, reason `authorizationRevoked`); an Authorizer failure counts as a denial
 - ADP version mismatch: `UNSUPPORTED_VERSION`, then the connection is closed with status 1008; no retry on the same connection
-- ADP 타깃: `getTargets`와 타깃 이벤트는 주체가 attach할 수 있는 타깃만 보여준다. 인가가 실패하면 보여주지 않는다(fail closed)
-- ADP `traceparent`: 클라이언트가 보낸 값은 신뢰하지 않는 입력이다. 형식을 검증하고, 기본은 새 trace를 시작해 클라이언트 trace를 링크한다
-- TLS 가시성(세션별 CA 주입)은 정책으로만 켜고, 켜진 세션은 메타데이터에 표시
-- 복제 후 재인증: restore 직후 복제본마다 새 토큰을 발급하고 이전 토큰은 폐기한다
+- ADP targets: `getTargets` and target events show only targets the principal can attach to. If authorization fails, the target is not shown (fail closed)
+- ADP `traceparent`: the value a client sends is untrusted input. Its format is validated, and by default a new trace is started that links the client trace
+- TLS visibility (per-session CA injection) is turned on only by policy, and sessions with it on are marked in the metadata
+- Re-authentication after cloning: right after restore, every clone gets a new token and the previous token is revoked
 
-## 4.1 게스트 내부 노출면
-- 게스트 안의 다른 앱도 신뢰하지 않는다.
-- 인스펙션·디버그용으로 연 경로(WebView 디버깅, inspector hook, agent, adbd, TLS 가시성 CA)는 adpd와 호스트만 쓸 수 있어야 하고, 정책으로만 켜며, AVB를 깨지 않는다.
+## 4.1 Exposure inside the guest
+- Other apps inside the guest are not trusted either.
+- Paths opened for inspection and debugging (WebView debugging, inspector hooks, agent, adbd, the TLS visibility CA) must be usable only by adpd and the host, are turned on only by policy, and do not break AVB.
 
-## 5. fuzzing (CI 상시)
-- virtio 큐 파서 (모든 devices)
-- `host/vmm/boot` 이미지 파서, `host/vmm/disk` GPT/레이어 파서
-- usernet 패킷 처리
-- guest_link 디코더, keymint 프레이밍 디코더, ADP 디코더
-- 스냅샷 메타데이터 파서
-- 프레임 매칭 입력 (게스트가 보낸 식별자는 신뢰하지 않고 검증)
+## 5. Fuzzing (always on in CI)
+- virtio queue parsers (all devices)
+- `host/vmm/boot` image parsers, `host/vmm/disk` GPT/layer parsers
+- usernet packet handling
+- guest_link decoder, keymint framing decoder, ADP decoder
+- Snapshot metadata parser
+- Frame matching input (identifiers sent by the guest are not trusted and are validated)
 
-## 6. 키와 시크릿
-- AVB 서명키, 플랫폼 서명키: CI 시크릿 / HSM. 레포에는 공개키만
-- 키 순환 runbook (`docs/runbooks/`)
-- 릴리스 번들: 서명, SBOM, provenance
+## 6. Keys and secrets
+- AVB signing keys, platform signing keys: CI secrets / HSM. Only public keys in the repository
+- Key rotation runbook (`docs/runbooks/`)
+- Release bundles: signature, SBOM, provenance
 
-## 7. 공급망
-- 의존성 고정 (`Cargo.lock`, `versions.toml`)
-- 재현 가능한 빌드 목표
-- Renovate 업데이트는 테스트 통과 후 머지
+## 7. Supply chain
+- Pinned dependencies (`Cargo.lock`, `versions.toml`)
+- Reproducible builds as a goal
+- Renovate updates are merged after the tests pass

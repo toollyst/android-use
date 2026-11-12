@@ -1,52 +1,52 @@
-# 01. 불변 원칙
+# 01. Invariant principles
 
-이 원칙들은 기능보다 우선한다. 바꾸려면 프로젝트 오너의 명시적인 결정이 필요하다.
+These principles take precedence over features. Changing them needs an explicit decision by the project owner.
 
-## P1. QEMU와 우회 경로 금지
-- 런타임은 **wick(Firecracker) + Rust 디바이스 백엔드 + 직접 빌드한 AOSP**뿐이다. QEMU 코드·바이너리·런타임 의존은 어떤 형태로도 들이지 않는다.
-- gfxstream(AOSP 독립 라이브러리)과 berberis(AOSP 자체 바이너리 번역기)는 QEMU와 무관하므로 허용한다.
-- 개발 편의를 위한 우회(AVB off, SELinux permissive, adb 의존 제어, 소프트웨어 렌더링 고정)는 기본 경로가 될 수 없다. adb는 CTS/VTS 측정 전용이며 ADP·MCP 제어 경로로 쓰지 않는다.
-- 지원 범위를 **단계적으로 넓히는 것**(예: v1은 플랫폼 하나)은 우회가 아니다. 품질 기준은 낮추지 않는다.
+## P1. No QEMU and no workaround paths
+- The runtime is **wick (Firecracker) + Rust device backends + AOSP we build ourselves**, and nothing else. QEMU code, binaries and runtime dependencies are not brought in in any form.
+- gfxstream (a standalone AOSP library) and berberis (AOSP's own binary translator) are unrelated to QEMU and are allowed.
+- Workarounds for development convenience (AVB off, SELinux permissive, adb-dependent control, pinned software rendering) can never become the default path. adb is only for CTS/VTS measurement and is not used as an ADP or MCP control path.
+- **Widening the supported scope in stages** (e.g. v1 on one platform) is not a workaround. The quality bar is not lowered.
 
-## P2. upstream 고정, 패치는 보수적으로, 확장은 적극적으로
-- 세 축 모두 같은 원칙: Firecracker→wick, AOSP 릴리스 태그, GKI 커널
-- 패치에는 **hook 지점만** 넣는다. 로직은 우리 레이어(ext, overlay)에 둔다.
-- 범용 기능은 upstream-first. 머지되면 우리 패치를 삭제한다.
+## P2. Pin upstream, patch conservatively, extend aggressively
+- The same principle on all three axes: Firecracker→wick, AOSP release tags, the GKI kernel
+- Patches add **only hook points**. The logic lives in our layers (ext, overlay).
+- General-purpose features go upstream first. Once merged upstream, our patch is deleted.
 
-## P3. 경계는 계약으로만
-- Chromium식 레이어. 의존은 위에서 아래로만, 형제끼리는 계약 경유. runtime(L4)이 묶는 계층이다.
-- 계약은 semver, 하위호환 테스트, 양쪽 OWNERS 승인.
+## P3. Boundaries only through contracts
+- Chromium-style layers. Dependencies go only from top to bottom, and siblings go through contracts. runtime (L4) is the layer that ties things together.
+- Contracts have semver, backward-compatibility tests, and approval by the OWNERS of both sides.
 
-## P4. 하위 레이어는 상위 개념을 모른다
-- `host/vmm/`, `host/devices/`는 Android를 모른다. 범용 virtio만 다뤄서 범용 샌드박스로 재사용할 수 있게 한다.
-- 코어는 테넌트, 과금을 모른다. `labels`와 SPI로 확장한다.
+## P4. Lower layers do not know upper-layer concepts
+- `host/vmm/` and `host/devices/` do not know Android. They handle only generic virtio, so they can be reused as a general-purpose sandbox.
+- The core does not know tenants or billing. It is extended with `labels` and the SPI.
 
-## P5. 디바이스는 별도 프로세스
-- gpu, input, snd, net은 vhost-user 백엔드로 분리하고 각각 샌드박스에서 돌린다.
-- 호스트 KeyMint도 별도 프로세스·별도 샌드박스로 돌린다 (`host/runtime/keymint`).
+## P5. Devices are separate processes
+- gpu, input, snd and net are split out as vhost-user backends, each running in a sandbox.
+- The host KeyMint also runs as a separate process in a separate sandbox (`host/runtime/keymint`).
 
-## P6. 상용 품질이 기본
-- user 빌드(adbd 기본 off, 호스트 인가로만 활성), AVB, SELinux enforcing
-- 디바이스·VMM 샌드박스, 호스트 KeyMint
-- 스냅샷 복제 고유성(VMGenID + 게스트 restore hook)
-- 신뢰할 수 없는 입력 경계에 대한 fuzzing
-- CTS/VTS를 호환성 지표로 사용. **배포 이미지 그대로** 측정한다
+## P6. Production quality is the default
+- user build (adbd off by default, enabled only by host authorization), AVB, SELinux enforcing
+- Device and VMM sandboxes, host KeyMint
+- Snapshot clone uniqueness (VMGenID + guest restore hook)
+- Fuzzing at untrusted input boundaries
+- CTS/VTS used as the compatibility metric. Measured **on the release image as is**
 
-## P7. 측정 가능하게
-- 레이어를 관통하는 단일 트레이스(Perfetto)
-- 품질은 지표로 정의한다: CTS 통과율, 부팅·restore 시간, 입력→화면 지연, 트리 갱신 지연, 밀도
+## P7. Make it measurable
+- A single trace (Perfetto) across the layers
+- Quality is defined by metrics: CTS pass rate, boot and restore time, input→screen latency, tree update latency, density
 
-## P8. 스코프를 먼저 고정하고 칸을 채운다
-- 모든 기능은 `docs/scope.md`의 매트릭스(기능 × 레이어)에 먼저 존재한다.
-- 개발은 "기능 추가"가 아니라 "칸 채우기"다. 계약을 먼저 만들고, 레이어는 병렬로 구현한다.
+## P8. Fix the scope first, then fill the cells
+- Every feature exists first in the matrix (feature × layer) in `docs/scope.md`.
+- Development is "filling cells", not "adding features". Contracts come first, and the layers are implemented in parallel.
 
-## P9. 오픈 코어는 그 자체로 완결된다
-- Apache-2.0 코어만으로 셀프호스팅 단일 노드가 완전히 동작해야 한다.
-- SaaS는 코어를 포크하지 않고 SPI 구현과 control plane만으로 만든다.
+## P9. The open core is complete on its own
+- The Apache-2.0 core alone must fully run a self-hosted single node.
+- SaaS is built without forking the core, only with SPI implementations and a control plane.
 
-## P10. 상용 품질 기준으로 결정한다
-- 모든 선택은 최종 제품의 품질·정확성·보안으로 판단한다. 구현 비용이나 일정은 선택 기준이 아니다.
+## P10. Decide by production quality
+- Every choice is judged by the quality, correctness and security of the final product. Implementation cost and schedule are not selection criteria.
 
-## P11. 문서는 방향을, 할 일은 코드와 지시로
-- 문서에는 로드맵·아키텍처·지향점처럼 추상적이고 명확한 것만 적는다.
-- 구체적인 할 일은 코드나 프로젝트 오너의 지시로 정한다. 작업 중 새로 생긴 일은 허락을 받고 한다.
+## P11. Docs give direction; tasks come from code and instructions
+- Docs record only what is abstract and clear, such as the roadmap, the architecture and the direction.
+- Concrete tasks are set by code or by the project owner's instructions. New work that comes up during a task is done only with permission.

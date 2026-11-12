@@ -1,4 +1,4 @@
-# 문서
+# Documentation
 
-- `docs/`에는 로드맵, 아키텍처, 지향점처럼 추상적이고 명확한 것만 적는다.
-- 구체적인 할 일은 코드나 사용자 지시로 정한다. 요청받지 않은 상세 명세나 절차를 문서에 추가하지 않는다.
+- `docs/` records only what is abstract and clear, such as the roadmap, the architecture and the direction.
+- Concrete tasks are set by code or by the maintainers' instructions. Detailed specifications or procedures that were not requested are not added to the docs.

@@ -1,9 +1,9 @@
 # guest/ (L3)
 
-게스트 Android. 상세: `docs/06-guest-aosp.md`
+Guest Android. Details: `docs/06-guest-aosp.md`
 
-- `vendor/`: AOSP overlay. `tools/sync/aosp-sync.sh`가 `$AOSP_ROOT/vendor/droiduse`로 **rsync 또는 bind mount**한다 (symlink 금지: Soong 제약).
-- `kernel/`: `fragments/`(config fragment), `modules/`(필요 시 vendor 모듈, KMI 준수)
+- `vendor/`: the AOSP overlay. `tools/sync/aosp-sync.sh` puts it at `$AOSP_ROOT/vendor/droiduse` by **rsync or bind mount** (no symlinks: a Soong constraint).
+- `kernel/`: `fragments/` (config fragments), `modules/` (vendor modules when needed, KMI compliant)
 
 ```
 vendor/
@@ -14,4 +14,4 @@ vendor/
 ├─ nativebridge/  apps/microg/  sepolicy/  avb/  protocol/
 ```
 
-규칙: 배포 빌드는 user 빌드, AVB on, SELinux enforcing. 모듈 가시성은 Soong `visibility`로 제한한다.
+Rules: the release build is a user build, AVB on, SELinux enforcing. Module visibility is restricted with Soong `visibility`.

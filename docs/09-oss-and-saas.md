@@ -1,48 +1,48 @@
-# 09. 오픈 코어와 SaaS 확장
+# 09. Open core and SaaS extension
 
-## 1. 경계
+## 1. Boundary
 ```
-[droid-use-cloud: 비공개 별도 레포]
-   control plane: 테넌트 · 인증 · 과금 · 스케줄러 · 플릿 · 대시보드
-   스토리지(GCS 등) · WebRTC 게이트웨이 · 프록시 · 녹화 보관
-           │  contracts/node (Node API)  +  contracts/spi 구현체 주입
-[droid-use: 이 레포, Apache-2.0]
-   host/entrypoints/node: 머신 한 대에서 여러 인스턴스를 운영하는 노드 데몬
+[droid-use-cloud: separate private repository]
+   control plane: tenants · authentication · billing · scheduler · fleet · dashboard
+   storage (GCS, etc.) · WebRTC gateway · proxy · recording archive
+           │  contracts/node (Node API)  +  injected contracts/spi implementations
+[droid-use: this repository, Apache-2.0]
+   host/entrypoints/node: node daemon that runs several instances on one machine
    runtime / services / devices / vmm / guest
 ```
-- **코어**: 머신 한 대 안에서 일어나는 모든 일. 셀프호스팅 단일 노드로 완결된다.
-- **SaaS**: 여러 머신과 여러 테넌트에 걸친 일. 코어를 포크하지 않고 **교체·추가**만 한다.
-- 이 레포에는 SaaS 코드를 넣지 않는다. 코어는 테넌트·과금 개념을 모른다.
-- 라이선스: **Apache-2.0** (wick, Firecracker와 동일). 경쟁력은 운영 계층(플릿, 스냅샷 배포 속도, 프로필, 관측성, 대시보드)에서 만든다.
+- **Core**: everything that happens inside one machine. It is complete as a self-hosted single node.
+- **SaaS**: work that spans several machines and several tenants. It does not fork the core; it only **replaces and adds**.
+- SaaS code does not go into this repository. The core does not know tenant or billing concepts.
+- License: **Apache-2.0** (the same as wick and Firecracker). The competitive edge is built in the operations tier (fleet, snapshot distribution speed, profiles, observability, dashboard).
 
 ## 2. SPI (contracts/spi)
-| SPI | 사용 위치 | 코어 기본 구현 | SaaS 구현 예 |
+| SPI | Used in | Core default implementation | Example SaaS implementation |
 |---|---|---|---|
-| `SnapshotStore`, `ImageStore` | host/runtime/snapshot | 로컬 파일시스템 | 오브젝트 스토리지 + 지역 캐시 |
-| `MemorySource` | host/runtime/snapshot (uffd) | 로컬 파일 | 원격 페이지 서버 (lazy restore) |
-| `ProfileStore` | runtime (디스크 profile 레이어) | 로컬 | 사용자별 로그인 상태 보존 |
-| `Authenticator`, `Authorizer` | host/entrypoints/adp_server, host/entrypoints/node | 로컬 토큰 | API 키, OIDC, 테넌트 권한 |
-| `PolicyProvider` | host/services/network, host/runtime/resources | 정적 설정 | 테넌트·플랜별 동적 정책 |
-| `EgressUpstream` | host/devices/net (usernet) | 직접 연결 | 프록시 체인, 지역 선택 |
-| `DeviceProfileProvider` | host/runtime/identity | 기본 프로필 | 기종·로케일·시간대·위치 프로필 |
+| `SnapshotStore`, `ImageStore` | host/runtime/snapshot | Local filesystem | Object storage + regional cache |
+| `MemorySource` | host/runtime/snapshot (uffd) | Local file | Remote page server (lazy restore) |
+| `ProfileStore` | runtime (disk profile layer) | Local | Per-user login state retention |
+| `Authenticator`, `Authorizer` | host/entrypoints/adp_server, host/entrypoints/node | Local tokens | API keys, OIDC, tenant permissions |
+| `PolicyProvider` | host/services/network, host/runtime/resources | Static config | Dynamic policy per tenant and plan |
+| `EgressUpstream` | host/devices/net (usernet) | Direct connection | Proxy chain, region selection |
+| `DeviceProfileProvider` | host/runtime/identity | Default profile | Device model, locale, time zone and location profiles |
 | `StreamTransport` | host/services/stream | WebSocket | WebRTC |
-| `EventSink` | runtime, services | 로그 | 미터링, 감사 로그 |
-| `TelemetryExporter` | host/base/trace | Perfetto 파일 | OTel 중앙 수집 |
-| `Recorder` | host/services/record | 로컬 파일 | 보관 + 리플레이 |
+| `EventSink` | runtime, services | Log | Metering, audit log |
+| `TelemetryExporter` | host/base/trace | Perfetto file | Central OTel collection |
+| `Recorder` | host/services/record | Local file | Archive + replay |
 
-### 시그니처 초안
+### Draft signatures
 ```rust
-// 비동기 메서드가 있는 trait은 #[async_trait]: dyn으로 주입할 수 있고 future는 Send
+// Traits with async methods use #[async_trait]: they can be injected as dyn and the futures are Send
 pub trait SnapshotStore: Send + Sync {
     async fn put(&self, meta: &SnapshotMeta, parts: SnapshotParts) -> Result<SnapshotRef>;
-    async fn open(&self, r: &SnapshotRef) -> Result<SnapshotHandle>;   // 메타 + 디바이스 state + MemorySource 팩토리
+    async fn open(&self, r: &SnapshotRef) -> Result<SnapshotHandle>;   // metadata + device state + MemorySource factory
     async fn list(&self, selector: &LabelSelector) -> Result<Vec<SnapshotRef>>;
     async fn delete(&self, r: &SnapshotRef) -> Result<()>;
 }
 pub trait MemorySource: Send + Sync {
     fn len(&self) -> u64;
-    async fn read_at(&self, offset: u64, len: usize) -> Result<Bytes>;   // 소유 버퍼 (bytes::Bytes)
-    async fn prefetch(&self, ranges: &[std::ops::Range<u64>]);          // 워킹셋 힌트
+    async fn read_at(&self, offset: u64, len: usize) -> Result<Bytes>;   // owned buffer (bytes::Bytes)
+    async fn prefetch(&self, ranges: &[std::ops::Range<u64>]);          // working-set hint
 }
 pub trait ProfileStore: Send + Sync {
     async fn open(&self, id: &ProfileId) -> Result<DiskLayer>;
@@ -52,10 +52,10 @@ pub trait Authenticator: Send + Sync {
     async fn authenticate(&self, cred: &Credential, ch: &ChannelCtx) -> Result<Principal>;
 }
 pub trait Authorizer: Send + Sync {
-    async fn authorize(&self, who: &Principal, action: &Action, on: &Resource) -> Result<Decision>;   // Err·취소는 거부 (fail closed)
+    async fn authorize(&self, who: &Principal, action: &Action, on: &Resource) -> Result<Decision>;   // Err or cancellation is a denial (fail closed)
 }
 pub trait PolicyProvider: Send + Sync {
-    async fn session_policy(&self, labels: &Labels) -> Result<SessionPolicy>;   // egress, 리소스 한도, TLS 가시성 등
+    async fn session_policy(&self, labels: &Labels) -> Result<SessionPolicy>;   // egress, resource limits, TLS visibility, etc.
 }
 pub trait EgressUpstream: Send + Sync {
     async fn connect(&self, dst: &Destination, flow: &FlowCtx) -> Result<Box<dyn Conn>>;
@@ -75,10 +75,10 @@ pub trait Recorder: Send + Sync {
 }
 ```
 
-### 주입 방식
-- **in-process (Rust trait)**: 성능이 중요한 것 (`MemorySource`, `SnapshotStore`, `StreamTransport`, `EgressUpstream`). SaaS 레포가 코어 crate를 의존성으로 가져와 **자기 node 바이너리를 조립**한다. 동적 로딩 없음.
-- **out-of-process (gRPC 훅)**: 제어성 판단 (`Authorizer`, `PolicyProvider`). 언어 제약 없음.
-- 코어의 `host/entrypoints/node`는 SPI 구현체를 받는 **빌더 API**를 공개한다.
+### Injection
+- **in-process (Rust trait)**: performance-critical ones (`MemorySource`, `SnapshotStore`, `StreamTransport`, `EgressUpstream`). The SaaS repository takes the core crates as dependencies and **assembles its own node binary**. No dynamic loading.
+- **out-of-process (gRPC hooks)**: control decisions (`Authorizer`, `PolicyProvider`). No language constraint.
+- The core's `host/entrypoints/node` exposes a **builder API** that accepts SPI implementations.
 ```rust
 NodeBuilder::new(config)
     .snapshot_store(my_store)
@@ -89,21 +89,21 @@ NodeBuilder::new(config)
     .run()
 ```
 
-## 3. 지금 설계에 넣어야 하는 것 (나중에 고치기 비싼 것)
-1. **디스크 레이어링**: base / snapshot / profile CoW (`host/vmm/disk`)
-2. **`MemorySource` 추상화**: restore가 로컬 파일을 직접 읽지 않음
-3. **CPU 템플릿 고정**과 스냅샷 메타데이터의 템플릿·이미지 해시
-4. **모든 채널 인증**: ADP, Node API, 스트림, guest_link
-5. **불투명 `labels`**: 인스턴스·세션·스냅샷 전부
-6. **리소스 회계 이벤트**: 미터링 근거
-7. **버전 있는 스냅샷 포맷**: 호환되지 않는 restore 거부
+## 3. What must be in the design now (expensive to fix later)
+1. **Disk layering**: base / snapshot / profile CoW (`host/vmm/disk`)
+2. **The `MemorySource` abstraction**: restore does not read local files directly
+3. **Pinned CPU template** and the template and image hashes in the snapshot metadata
+4. **Authentication on every channel**: ADP, Node API, streams, guest_link
+5. **Opaque `labels`**: on all instances, sessions and snapshots
+6. **Resource accounting events**: the basis for metering
+7. **Versioned snapshot format**: incompatible restores are rejected
 
-## 4. SaaS 레포 구조 (참고, 이 레포에 만들지 않음)
+## 4. SaaS repository layout (reference only, not created in this repository)
 ```
 droid-use-cloud/
-├─ node/            코어 crate + SPI 구현으로 조립한 노드 바이너리
-├─ control-plane/   테넌트 · 인증 · 스케줄러 · 과금 · 공개 API
-├─ gateway/         WebRTC · ADP 원격 프록시
-├─ storage/         스냅샷 · 이미지 · 프로필 · 녹화
-└─ dashboard/       라이브 뷰 · 리플레이 · 트레이스 뷰어
+├─ node/            node binary assembled from the core crates + SPI implementations
+├─ control-plane/   tenants · authentication · scheduler · billing · public API
+├─ gateway/         WebRTC · ADP remote proxy
+├─ storage/         snapshots · images · profiles · recordings
+└─ dashboard/       live view · replay · trace viewer
 ```

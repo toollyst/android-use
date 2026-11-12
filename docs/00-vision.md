@@ -1,47 +1,47 @@
-# 00. 비전
+# 00. Vision
 
-## 한 줄
-**Android용 Playwright/CDP.** AI가 Android 앱을 웹처럼 구조적으로 읽고 정확하게 조작하게 하는 가볍고 격리된 상용급 런타임.
+## In one line
+**Playwright/CDP for Android.** A lightweight, isolated, production-grade runtime that lets AI read Android apps structurally, as it reads the web, and operate them precisely.
 
-## 왜 필요한가
-- 에이전트의 행동 공간은 사실상 웹에 머물러 있다. 그런데 실제 서비스(금융, 배달, 사내 업무 등)는 **앱에서만** 되는 경우가 많다.
-- 기존 접근은 둘 중 하나다.
-  - **무거운 실행 환경**(에뮬레이터, Cuttlefish 계열 클라우드 폰): 밀도가 낮고 데스크탑 로컬 용도에 맞지 않는다.
-  - **앱 수준 에이전트 도구**(접근성 서비스 앱 + ADB): 접근성 API가 보여주는 범위까지만 읽고, 사전 설정이 필요하다.
-- Droid Use는 **실행 환경과 인스펙션을 OS 수준에서 함께** 설계한다.
+## Why it is needed
+- An agent's action space is in practice confined to the web. Yet many real services (finance, delivery, internal business tools and so on) work **only in an app**.
+- Existing approaches are one of two kinds.
+  - **Heavy execution environments** (emulators, Cuttlefish-style cloud phones): low density, and a poor fit for local desktop use.
+  - **App-level agent tools** (an accessibility service app + ADB): they read only as far as the accessibility API shows, and they need prior setup.
+- Droid Use designs **the execution environment and inspection together, at the OS level**.
 
-## 사용 사례
-| 사용 사례 | 핵심 요구 |
+## Use cases
+| Use case | Key requirements |
 |---|---|
-| AI 에이전트의 앱 조작 | 정확한 구조 읽기, 노드 기반 액션, 결정적 대기 |
-| 모바일 에이전트 RL 환경 / 벤치마크 | 재현 가능한 초기 상태(스냅샷), 높은 밀도, 빠른 리셋 |
-| 앱 QA 자동화 | 안정적인 셀렉터, 프레임 동기화, 녹화와 트레이스 |
-| 기업용 에이전트 (예: Hopfia Hub 연동) | 격리, egress 정책, 감사 로그 |
-| 로컬 프라이버시 실행 | 데이터가 기기 밖으로 나가지 않는 로컬 microVM |
-| 클라우드 SaaS | 플릿, 원격 스트림, 프로필 보존 (별도 레포, SPI로 확장) |
+| AI agents operating apps | Accurate structure reading, node-based actions, deterministic waiting |
+| RL environments / benchmarks for mobile agents | Reproducible initial state (snapshots), high density, fast reset |
+| App QA automation | Stable selectors, frame synchronization, recording and traces |
+| Enterprise agents (e.g. Hopfia Hub integration) | Isolation, egress policy, audit logs |
+| Local private execution | A local microVM whose data never leaves the machine |
+| Cloud SaaS | Fleet, remote streams, profile retention (separate repo, extended through the SPI) |
 
-## 차별점 (셋 다 v1 필수, 하나라도 빠지면 기존 것과 비슷해진다)
-1. **microVM 밀도 + 복제 안전 스냅샷 풀**
-2. **프레임워크 수준 통합 인스펙션(ADP)**: 접근성 API를 넘어 View, Compose, WebView CDP, 렌더 레이어까지. frameId 동기화와 안정적인 노드 ID 보장
-3. **크로스플랫폼 로컬 실행**: Linux · macOS · Windows
+## Differentiators (all three are required for v1; without any one of them it becomes similar to what exists)
+1. **microVM density + a clone-safe snapshot pool**
+2. **Framework-level unified inspection (ADP)**: beyond the accessibility API, down to View, Compose, WebView CDP and render layers. Guarantees frameId synchronization and stable node IDs
+3. **Cross-platform local execution**: Linux · macOS · Windows
 
-## 경쟁 구도
+## Competitive landscape
 | | Cuttlefish | redroid | droidrun (Mobilerun) | mobile-use | **Droid Use** |
 |---|---|---|---|---|---|
-| 분류 | 가상 기기(VM) | 컨테이너 | 에이전트 프레임워크 | 에이전트 프레임워크 | VM + 인스펙션 프로토콜 |
-| 격리 | VM | 커널 공유 | 해당 없음 | 해당 없음 | microVM + 디바이스별 샌드박스 |
-| 호스트 | Linux 중심 | Linux만 | 기기 필요 | 기기 필요 | Linux · macOS · Windows |
-| 그래픽 | gfxstream(vhost-user-gpu) | 호스트/게스트 렌더링 | 기기 의존 | 기기 의존 | gfxstream(vhost-user-gpu) |
-| 스냅샷 | 지원(Android 15+) | 컨테이너 수준 | 없음 | 없음 | 지원 + 복제 고유성(VMGenID) |
-| 화면 읽기 | adb·도구 | adb·도구 | 접근성 서비스 앱 | 접근성 트리 + 스크린샷 | 프레임워크 hook 통합 트리 + frameId |
-| 사전 설정 | - | 호스트 binder 모듈 | 앱 설치 + 권한 수동 활성화 | ADB + 보조 APK | 없음(시스템 내장) |
+| Category | Virtual device (VM) | Container | Agent framework | Agent framework | VM + inspection protocol |
+| Isolation | VM | Shared kernel | Not applicable | Not applicable | microVM + per-device sandbox |
+| Host | Mainly Linux | Linux only | Needs a device | Needs a device | Linux · macOS · Windows |
+| Graphics | gfxstream (vhost-user-gpu) | Host/guest rendering | Depends on the device | Depends on the device | gfxstream (vhost-user-gpu) |
+| Snapshots | Supported (Android 15+) | Container level | None | None | Supported + clone uniqueness (VMGenID) |
+| Screen reading | adb · tools | adb · tools | Accessibility service app | Accessibility tree + screenshots | Unified tree from framework hooks + frameId |
+| Prior setup | - | Host binder module | App install + manual permission enabling | ADB + helper APK | None (built into the system) |
 
-**해석**
-- Cuttlefish는 vhost-user-gpu + gfxstream을 별도 프로세스로 돌린다. 우리 방향(디바이스 out-of-process)이 맞다는 근거다.
-- droidrun, mobile-use는 경쟁자라기보다 **잠재 사용자**다. 이들은 "기기"가 필요하고, Droid Use는 그 기기를 더 가볍고 격리되고 정밀하게 읽을 수 있는 형태로 제공한다. ADP 위에 어댑터를 붙일 수 있다.
-- 실질 경쟁자는 Cuttlefish/redroid 기반 클라우드 폰 서비스다.
+**Reading the table**
+- Cuttlefish runs vhost-user-gpu + gfxstream as a separate process. This supports our direction (devices out of process).
+- droidrun and mobile-use are **potential users** rather than competitors. They need a "device", and Droid Use provides that device in a form that is lighter, isolated and can be read more precisely. Adapters can sit on top of ADP.
+- The real competitors are cloud phone services built on Cuttlefish/redroid.
 
-## 비목표
-- Play Integrity strong 등급이 필요한 앱 지원 (Google 라이선스·기기 인증 영역, 기술 범위 밖)
-- 게임 성능 경쟁 (그래픽은 정확성과 호환성 우선)
-- 실기기 제어 (ADP 어댑터로 나중에 고려 가능하지만 코어 범위 밖)
+## Non-goals
+- Supporting apps that need the Play Integrity strong tier (Google licensing and device certification; outside the technical scope)
+- Competing on game performance (graphics put correctness and compatibility first)
+- Controlling physical devices (could be considered later through an ADP adapter, but outside the core scope)

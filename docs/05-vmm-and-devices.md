@@ -1,58 +1,58 @@
-# 05. VMM과 디바이스 (L2)
+# 05. VMM and devices (L2)
 
-## 1. wick과의 관계
-- wick = upstream Firecracker를 submodule로 두고, 작은 패치 시리즈와 OS별 플랫폼 백엔드로 Linux·macOS·Windows를 지원하는 프로젝트 (Apache-2.0).
+## 1. Relationship with wick
+- wick = a project that keeps upstream Firecracker as a submodule and supports Linux, macOS and Windows with a small patch series and per-OS platform backends (Apache-2.0).
   - Linux: upstream Firecracker (KVM)
-  - macOS (Apple silicon, 15+): Hypervisor.framework. SMP, virtio-blk, vsock, virtio-net(vmnet), PCI/MSI-X, 스냅샷, userfaultfd, vhost-user 동작. 게스트는 aarch64만
-  - Windows (x86_64): WHP. 빌드와 CI는 되지만 작성 시점에 실기기 게스트 부팅 전
-- wick은 자체 기능을 `crates/ext`(`vmm::ext`)로 분리한다. **우리는 같은 방식으로 wick 위에 한 층을 더 얹는다.**
+  - macOS (Apple silicon, 15+): Hypervisor.framework. SMP, virtio-blk, vsock, virtio-net (vmnet), PCI/MSI-X, snapshots, userfaultfd and vhost-user work. aarch64 guests only
+  - Windows (x86_64): WHP. Builds and CI work, but at the time of writing no guest had booted on real hardware yet
+- wick keeps its own features separate in `crates/ext` (`vmm::ext`). **We add one more layer on top of wick in the same way.**
 ```
-Firecracker tag ─(wick patches: wick 소관)─▶ wick commit ─(third_party/wick/patches: 우리)─▶ + host/vmm/ crates ─▶ VMM 바이너리
+Firecracker tag ─(wick patches: wick's responsibility)─▶ wick commit ─(third_party/wick/patches: ours)─▶ + host/vmm/ crates ─▶ VMM binary
 ```
 
-## 2. wick 패치 (보수적)
-`third_party/wick/patches/`. 원칙: **확장 지점과 범용 기능만**. 범용 기능은 wick에 upstream PR을 먼저 올린다.
+## 2. wick patches (conservative)
+`third_party/wick/patches/`. Principle: **only extension points and general-purpose features**. General-purpose features are submitted to wick as an upstream PR first.
 
-| 패치 | 내용 | upstream 후보 |
+| Patch | Content | Upstream candidate |
 |---|---|---|
-| ext 디바이스 등록 hook | 우리 crate가 디바이스·API를 등록할 지점 (wick ext API로 충분하면 불필요) | wick |
-| 부트 페이로드 hook | 커널 로딩 전에 ext 로더가 kernel/initrd/cmdline을 공급할 지점 | wick |
-| 범용 vhost-user frontend | upstream의 block 전용 구현을 device type 파라미터화. feature/protocol 협상, device state 전송 | wick / Firecracker |
-| virtio shared memory region | PCI BAR로 shm region 노출 (gfxstream blob) | wick / Firecracker |
-| VMGenID 플랫폼 지원 | upstream VMGenID를 macOS·Windows 백엔드에서 동작하게 | wick |
+| ext device registration hook | The point where our crates register devices and APIs (not needed if the wick ext API is enough) | wick |
+| Boot payload hook | The point where the ext loader supplies kernel/initrd/cmdline before the kernel is loaded | wick |
+| Generic vhost-user frontend | Parameterizes upstream's block-only implementation by device type. feature/protocol negotiation, device state transfer | wick / Firecracker |
+| virtio shared memory region | Exposes the shm region through a PCI BAR (gfxstream blob) | wick / Firecracker |
+| VMGenID platform support | Makes upstream VMGenID work on the macOS and Windows backends | wick |
 
-> 착수 전 wick의 `vmm::ext` 실제 API를 확인하고, ext로 해결되는 항목은 패치 목록에서 뺀다.
+> Before starting, check wick's actual `vmm::ext` API and remove from the patch list every item that ext solves.
 
-## 3. host/vmm/ ext crates (적극적)
-| crate | 책임 |
+## 3. host/vmm/ ext crates (aggressive)
+| crate | Responsibility |
 |---|---|
-| `host/vmm/boot` | boot image v4 + vendor_boot **컨테이너 포맷** 파싱(헤더, kernel, ramdisk, vendor ramdisk), ramdisk 결합, **bootconfig** 섹션 부착. bootconfig 내용은 불투명 key=value로 받기만 한다 (`androidboot.*` 값을 만드는 것은 `host/runtime/instance`). x86_64(cmdline/boot params)와 aarch64(FDT) 모두 지원 |
-| `host/vmm/disk` | **GPT 컴포지트 디스크**(super, userdata, metadata, misc 등 이름 있는 파티션 → `/dev/block/by-name`) + **CoW 레이어링**(base ro / snapshot / profile) |
-| `host/vmm/vmgenid` | 세대 ID 갱신 API, restore 시 자동 증가 |
-| `host/vmm/scanout` | gpu 백엔드의 scanout export를 호스트로 전달하는 fast path (링 버퍼와 frameId 매칭은 `host/runtime/instance`의 `FrameChannel`) |
-| `host/vmm/api` | Firecracker REST API 확장 (boot image v4 부팅 스펙, 디스크 레이어, 세대 ID 등) + runtime용 `Machine` REST 클라이언트. Android 의미는 없음 (스펙 이름도 포맷 이름 `BootImageV4`) |
+| `host/vmm/boot` | Parses the boot image v4 + vendor_boot **container format** (header, kernel, ramdisk, vendor ramdisk), combines ramdisks, attaches the **bootconfig** section. It only receives the bootconfig contents as opaque key=value (producing the `androidboot.*` values is `host/runtime/instance`'s job). Supports both x86_64 (cmdline/boot params) and aarch64 (FDT) |
+| `host/vmm/disk` | **GPT composite disk** (named partitions such as super, userdata, metadata, misc → `/dev/block/by-name`) + **CoW layering** (base ro / snapshot / profile) |
+| `host/vmm/vmgenid` | Generation ID update API, automatic increment on restore |
+| `host/vmm/scanout` | Fast path that delivers the gpu backend's scanout export to the host (the ring buffer and frameId matching are `FrameChannel` in `host/runtime/instance`) |
+| `host/vmm/api` | Firecracker REST API extensions (boot image v4 boot spec, disk layers, generation ID, etc.) + the `Machine` REST client for runtime. No Android meaning (the spec name is the format name, `BootImageV4`) |
 
-## 4. 디바이스 백엔드 (host/devices/)
-모두 **vhost-user 백엔드 별도 바이너리**로 만들고, 각각 `host/runtime/jail`의 샌드박스에서 실행한다. Android 지식 금지.
+## 4. Device backends (host/devices/)
+All are built as **separate vhost-user backend binaries**, and each runs in a `host/runtime/jail` sandbox. No Android knowledge.
 
-| 디바이스 | 기반 | 비고 |
+| Device | Based on | Notes |
 |---|---|---|
-| `host/devices/gpu` | rust-vmm `vhost-device-gpu` 계열 + rutabaga + **gfxstream** | 호스트 렌더러: Linux Vulkan / macOS MoltenVK(Metal) / Windows Vulkan. blob resource(shm region), scanout export, device state 직렬화. SwiftShader는 GPU 없는 호스트용 fallback일 뿐 기본 경로가 아님 |
-| `host/devices/input` | virtio-input | 멀티터치(MT protocol B), 키보드. 호스트가 이벤트를 직접 주입 |
-| `host/devices/snd` | rust-vmm `vhost-device-sound` 계열 | 오디오가 필요한 앱 호환 |
-| `host/devices/net` | vhost-user-net + **usernet**(smoltcp 기반 NAT) | root·entitlement 없이 동작. 플로우 관찰 훅, egress 정책 적용 지점(정책 결정은 host/services/network, SPI `EgressUpstream`으로 업스트림 교체) |
+| `host/devices/gpu` | rust-vmm `vhost-device-gpu` family + rutabaga + **gfxstream** | Host renderer: Linux Vulkan / macOS MoltenVK (Metal) / Windows Vulkan. blob resources (shm region), scanout export, device state serialization. SwiftShader is only a fallback for hosts without a GPU, not the default path |
+| `host/devices/input` | virtio-input | Multi-touch (MT protocol B), keyboard. The host injects events directly |
+| `host/devices/snd` | rust-vmm `vhost-device-sound` family | Compatibility for apps that need audio |
+| `host/devices/net` | vhost-user-net + **usernet** (smoltcp-based NAT) | Works without root or entitlements. Flow observation hooks, the egress policy enforcement point (policy decisions are in host/services/network; the upstream is replaced through the SPI `EgressUpstream`) |
 
-> 호스트 KeyMint는 virtio 디바이스가 아니고 Android 개념을 다루므로 `host/devices/`가 아니라 `host/runtime/keymint`에 둔다 (`docs/07-runtime.md`).
+> The host KeyMint is not a virtio device and deals with Android concepts, so it lives in `host/runtime/keymint`, not in `host/devices/` (`docs/07-runtime.md`).
 
-### 공통 요건
-- device state 저장·복원 지원 (스냅샷에 포함)
-- 신뢰할 수 없는 게스트 입력에 대한 fuzzing 타깃 제공 (`testing/fuzz/`)
-- conformance 테스트 (`testing/conformance/`)
-- 트레이스 이벤트 발행 (`host/base/trace`)
+### Common requirements
+- Device state save and restore support (included in snapshots)
+- Fuzzing targets for untrusted guest input (`testing/fuzz/`)
+- Conformance tests (`testing/conformance/`)
+- Trace event emission (`host/base/trace`)
 
-## 5. 플랫폼별 메모
-| 호스트 | 하이퍼바이저 | 게스트 | 그래픽 | 샌드박스 |
+## 5. Per-platform notes
+| Host | Hypervisor | Guest | Graphics | Sandbox |
 |---|---|---|---|---|
-| Linux x86_64 / arm64 | KVM | 같은 아키텍처 | Vulkan | Firecracker jailer |
-| macOS arm64 | Hypervisor.framework | arm64 (**arm64-only 이미지**, Apple silicon은 AArch32 미지원) | MoltenVK → Metal | seatbelt / App Sandbox |
+| Linux x86_64 / arm64 | KVM | Same architecture | Vulkan | Firecracker jailer |
+| macOS arm64 | Hypervisor.framework | arm64 (**arm64-only image**; Apple silicon does not support AArch32) | MoltenVK → Metal | seatbelt / App Sandbox |
 | Windows x86_64 | WHP | x86_64 | Vulkan | AppContainer |
