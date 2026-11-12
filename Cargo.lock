@@ -347,6 +347,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "droiduse-testing-e2e"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
 name = "droiduse-vmm-api"
 version = "0.1.0"
 dependencies = [
