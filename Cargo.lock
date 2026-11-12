@@ -70,6 +70,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
 
 [[package]]
+name = "droiduse-contracts-common"
+version = "0.1.0"
+
+[[package]]
+name = "droiduse-contracts-device"
+version = "0.1.0"
+
+[[package]]
+name = "droiduse-contracts-instance"
+version = "0.1.0"
+dependencies = [
+ "droiduse-contracts-common",
+ "droiduse-contracts-spi",
+]
+
+[[package]]
+name = "droiduse-contracts-machine"
+version = "0.1.0"
+dependencies = [
+ "droiduse-contracts-common",
+ "droiduse-contracts-spi",
+]
+
+[[package]]
+name = "droiduse-contracts-spi"
+version = "0.1.0"
+dependencies = [
+ "droiduse-contracts-common",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
