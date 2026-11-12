@@ -16,7 +16,7 @@
 |---|---|---|---|
 | `machine` | runtime ↔ vmm | Rust trait + 확장 REST API | in-process / unix socket |
 | `device` | vmm ↔ devices | vhost-user 표준 + 확장 | unix socket + shm |
-| `guest_link` | runtime·services ↔ guest | IDL → codegen | vsock |
+| `guest_link` | runtime·services ↔ guest | IDL → codegen | gRPC over vsock |
 | `keymint` | guest KeyMint HAL ↔ host/runtime/keymint | AOSP kmr wire 페이로드 + 우리 프레이밍·인증 | 전용 vsock 포트 |
 | `instance` | services ↔ runtime | Rust trait | in-process |
 | `adp` | host/entrypoints/adp_server ↔ clients·외부 클라이언트 | CDP 스타일 JSON-RPC 스키마 | WebSocket |
@@ -103,6 +103,7 @@ Debug.SetAdb      { enabled }
 // 복원
 Restore.Notify    ← { generation, completed_steps[] }   // VMGenID 변경 후 게스트 재초기화 완료 알림
 ```
+- gRPC over vsock이다. 토큰은 불투명 비밀(bytes), `vmgenid`는 16바이트다. trace ID는 gRPC 메타데이터 `droiduse-trace-id`로 싣는다.
 - KeyMint HAL 채널은 guest_link와 **분리된 전용 vsock 포트**를 쓰며 계약은 `keymint`다 (아래).
 
 ## keymint

@@ -1,5 +1,5 @@
 {
-  "description": "ADP: Android DevTools Protocol (docs/04-adp.md). CDP-style domains, commands, events, types. The version is contracts/adp/VERSION. Only shapes the docs fully define are listed; see contracts/adp/src/lib.rs.",
+  "description": "ADP: Android DevTools Protocol (docs/04-adp.md). CDP-style domains, commands, events, types. The version is contracts/adp/VERSION. Only shapes the docs fully define are listed; see contracts/adp/src/lib.rs. 64-bit integers are JSON decimal strings: type string with format int64 or uint64. 32-bit and smaller integers are JSON numbers: type integer, with format uint32 or int32 where the width is fixed.",
   "errors": [
     { "name": "FRAME_EXPIRED", "description": "The requested frameId is no longer in the ring buffer. No other frame is substituted." },
     { "name": "NODE_GONE", "description": "The target node is gone." },
@@ -26,8 +26,8 @@
           "type": "object",
           "properties": [
             { "name": "display", "description": "Display number.", "type": "integer", "format": "uint32" },
-            { "name": "vsyncId", "description": "Choreographer vsync ID (app side).", "type": "integer", "format": "int64" },
-            { "name": "sfFrame", "description": "SurfaceFlinger frame number (composition side).", "type": "integer", "format": "uint64" }
+            { "name": "vsyncId", "description": "Choreographer vsync ID (app side). Decimal string.", "type": "string", "format": "int64" },
+            { "name": "sfFrame", "description": "SurfaceFlinger frame number (composition side). Decimal string.", "type": "string", "format": "uint64" }
           ]
         },
         {
