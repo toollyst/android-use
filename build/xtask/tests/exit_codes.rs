@@ -202,12 +202,53 @@ fn slashed(p: &Path) -> String {
     p.to_string_lossy().replace('\\', "/")
 }
 
+/// The `bash` that the CI step `shell: bash` runs: the first `bash` on PATH (the Actions
+/// runner resolves it that way; on windows-2025 that is `C:\Program Files\Git\bin\bash.EXE`).
+///
+/// On Windows `Command::new("bash")` is not a PATH lookup: Rust searches the system
+/// directory before PATH and finds `System32\bash.exe`, the WSL launcher, which on a runner
+/// without a WSL distribution exits 1 with "Windows Subsystem for Linux has no installed
+/// distributions". So the lookup is done here, the way the runner does it.
+fn bash() -> PathBuf {
+    if !cfg!(windows) {
+        // execvp: a PATH lookup.
+        return PathBuf::from("bash");
+    }
+    let path = std::env::var_os("PATH").expect("PATH is set");
+    let found = std::env::split_paths(&path)
+        .map(|d| d.join("bash.exe"))
+        .find(|p| p.is_file())
+        .expect("bash.exe on PATH (Git Bash, as the CI step `shell: bash` needs)");
+    let system32 =
+        PathBuf::from(std::env::var_os("SystemRoot").expect("SystemRoot is set")).join("System32");
+    let is_wsl_launcher = found.parent().is_some_and(|d| {
+        d.to_string_lossy()
+            .eq_ignore_ascii_case(&system32.to_string_lossy())
+    });
+    assert!(
+        !is_wsl_launcher,
+        "the first bash.exe on PATH is the WSL launcher ({}); the CI step `shell: bash` \
+         would run it too. Put Git Bash ahead of System32 on PATH.",
+        found.display()
+    );
+    found
+}
+
 /// `bash tools/patch/lint.sh --root <dir>`, the CI step itself.
+///
+/// The script's nested `cargo xtask` gets its own target directory. In the shared one it
+/// would relink `target/debug/xtask` (`cargo run -p xtask` resolves fewer features than
+/// `cargo test --workspace`) while the other tests here execute that file, which Windows
+/// refuses (the file is in use).
 fn lint_sh(root: &Path) -> (i32, String) {
-    let out = Command::new("bash")
+    let out = Command::new(bash())
         .arg(slashed(&repo_root().join("tools/patch/lint.sh")))
         .arg("--root")
         .arg(slashed(root))
+        .env(
+            "CARGO_TARGET_DIR",
+            Path::new(env!("CARGO_TARGET_TMPDIR")).join("lint-sh-target"),
+        )
         .output()
         .expect("bash runs");
     let text = format!(
