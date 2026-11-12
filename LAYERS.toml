@@ -4,8 +4,8 @@
 #  2) 같은 레벨의 형제 디렉터리끼리 직접 의존 금지 (contracts 경유)
 #     같은 레이어 안에서도 1단계 모듈끼리(예: host/services/screen → host/services/inspect) 직접 의존 금지.
 #     같은 1단계 모듈 안(예: inspect → inspect/proto)은 허용.
-#     예외는 레이어 루트 LAYER.toml의 allow_siblings = ["<모듈>"]로만 둔다
-#     ("이 레이어의 어떤 모듈이든 이 형제 모듈에 의존 가능"). 하위 LAYER.toml에는 둘 수 없다.
+#     예외는 레이어 루트 LAYER.toml의 [allow_siblings] 표에 단방향 간선으로만 둔다
+#     (<모듈> = ["<의존해도 되는 형제 모듈>", ...]). 양방향·순환 간선은 거부한다. 하위 LAYER.toml에는 둘 수 없다.
 #  3) contracts는 모든 레이어가 의존 가능하고, contracts 자신은 다른 레이어에 의존하지 않는다 (자기완결)
 #     외부 crate는 아래 [contracts] allow_external에 이름이 있는 crates.io crate만 허용
 #  4) 디렉터리별 세부 허용 목록은 각 디렉터리의 LAYER.toml에서 좁힐 수 있음 (넓힐 수 없음)

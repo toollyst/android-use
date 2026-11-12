@@ -46,7 +46,7 @@ impl Fx {
     /// A repo that follows every rule, covering each layer and the allowed edge kinds.
     fn clean() -> Fx {
         let mut fx = Fx::empty();
-        // The real contracts graph: only common and spi are allow_siblings targets.
+        // The real contracts graph and its allow_siblings edges.
         fx.krate("contracts/common", &[])
             .krate("contracts/spi", &["contracts/common"])
             .krate("contracts/machine", &["contracts/common", "contracts/spi"])
@@ -344,12 +344,6 @@ fn sibling_modules_fail_in_every_layer() {
     assert_rules(&r, &["dep/sibling-module"]);
     assert_message(&r, "dev-dependency");
 
-    // testing has no exception either.
-    let mut fx = Fx::clean();
-    fx.krate("testing/support", &[]);
-    fx.add_deps("testing/e2e", &["testing/support"]);
-    assert_rules(&fx.run(), &["dep/sibling-module"]);
-
     // A crate at the layer root is a module of its own.
     let mut fx = Fx::clean();
     fx.krate("host/devices", &["host/devices/gpu"]);
@@ -369,35 +363,112 @@ fn same_module_dependencies_pass() {
 }
 
 #[test]
-fn contracts_siblings_only_through_allow_siblings() {
-    // contracts/LAYER.toml allow_siblings = ["common", "spi"]: device -> common/spi is fine.
+fn testing_layer_has_no_sibling_exception() {
+    // Owner decision: testing gets no allow_siblings edge.
     let mut fx = Fx::clean();
-    fx.add_deps("contracts/device", &["contracts/common", "contracts/spi"]);
-    assert_clean(&fx.run());
-
-    // device -> machine is not an allowed sibling.
-    let mut fx = Fx::clean();
-    fx.add_deps("contracts/device", &["contracts/machine"]);
+    fx.krate("testing/support", &[]);
+    fx.add_deps("testing/e2e", &["testing/support"]);
     let r = fx.run();
     assert_rules(&r, &["dep/sibling-module"]);
-    assert_message(&r, "`device` -> `machine`");
-
-    // The exception names targets only; it does not let an allowed module depend on others.
-    let mut fx = Fx::clean();
-    fx.add_deps("contracts/spi", &["contracts/device"]);
-    assert_rules(&fx.run(), &["dep/sibling-module"]);
+    assert_message(&r, "`e2e` -> `support`");
 }
 
 #[test]
-fn allow_siblings_exception_applies() {
+fn contracts_sibling_edges_are_directional() {
+    // contracts/LAYER.toml lists machine/instance -> common, spi and spi -> common:
+    // the real graph (Fx::clean) passes.
+    assert_clean(&Fx::clean().run());
+
+    // An unlisted edge to a target other modules may use: device has no edge.
+    let mut fx = Fx::clean();
+    fx.add_deps("contracts/device", &["contracts/common"]);
+    let r = fx.run();
+    assert_rules(&r, &["dep/sibling-module"]);
+    assert_message(&r, "`device` -> `common`");
+
+    // An unlisted edge between modules that do have other edges.
+    let mut fx = Fx::clean();
+    fx.add_deps("contracts/machine", &["contracts/instance"]);
+    let r = fx.run();
+    assert_rules(&r, &["dep/sibling-module"]);
+    assert_message(&r, "`machine` -> `instance`");
+
+    // The reverse of a listed edge: common -> device is not device -> common.
+    let mut fx = Fx::clean();
+    fx.edit(
+        "contracts/LAYER.toml",
+        "[allow_siblings]\n",
+        "[allow_siblings]\ndevice = [\"common\"]\n",
+    );
+    fx.add_deps("contracts/common", &["contracts/device"]);
+    let r = fx.run();
+    assert_rules(&r, &["dep/sibling-module"]);
+    assert_message(&r, "`common` -> `device`");
+}
+
+#[test]
+fn allow_siblings_edge_applies_in_its_direction_only() {
     let mut fx = Fx::clean();
     fx.add_deps("host/services/screen", &["host/services/inspect"]);
-    fx.edit(
+    fx.append(
         "host/services/LAYER.toml",
-        "[layer]\n",
-        "[layer]\nallow_siblings = [\"inspect\"]\n",
+        "[allow_siblings]\nscreen = [\"inspect\"]\n",
     );
     assert_clean(&fx.run());
+
+    // Reverse edge: inspect -> screen is not listed.
+    let mut fx = Fx::clean();
+    fx.add_deps("host/services/inspect", &["host/services/screen"]);
+    fx.append(
+        "host/services/LAYER.toml",
+        "[allow_siblings]\nscreen = [\"inspect\"]\n",
+    );
+    let r = fx.run();
+    assert_rules(&r, &["dep/sibling-module"]);
+    assert_message(&r, "`inspect` -> `screen`");
+}
+
+#[test]
+fn allow_siblings_must_be_one_directional() {
+    // Both directions: rejected, and no edge of the table is applied.
+    let mut fx = Fx::clean();
+    fx.add_deps("host/services/screen", &["host/services/inspect"]);
+    fx.append(
+        "host/services/LAYER.toml",
+        "[allow_siblings]\nscreen = [\"inspect\"]\ninspect = [\"screen\"]\n",
+    );
+    let r = fx.run();
+    assert_rules(&r, &["config/invalid", "dep/sibling-module"]);
+    assert_message(
+        &r,
+        "host/services/LAYER.toml: config/invalid: allow_siblings lists `inspect` and `screen` in both directions",
+    );
+
+    // A 3-cycle: rejected the same way.
+    let mut fx = Fx::clean();
+    fx.krate("host/services/input", &["host/runtime/instance"]);
+    fx.add_deps("host/services/screen", &["host/services/inspect"]);
+    fx.append(
+        "host/services/LAYER.toml",
+        "[allow_siblings]\nscreen = [\"inspect\"]\ninspect = [\"input\"]\ninput = [\"screen\"]\n",
+    );
+    let r = fx.run();
+    assert_rules(&r, &["config/invalid", "dep/sibling-module"]);
+    assert_message(
+        &r,
+        "allow_siblings edges form a cycle among `input`, `inspect`, `screen`",
+    );
+    assert_message(&r, "`screen` -> `inspect`");
+
+    // A self edge is meaningless (the same module is always allowed) and rejected.
+    let mut fx = Fx::clean();
+    fx.append(
+        "host/services/LAYER.toml",
+        "[allow_siblings]\nscreen = [\"screen\"]\n",
+    );
+    let r = fx.run();
+    assert_rules(&r, &["config/invalid"]);
+    assert_message(&r, "`screen` -> `screen`");
 }
 
 #[test]
@@ -407,29 +478,29 @@ fn allow_siblings_cannot_be_abused() {
     fx.add_deps("host/services/inspect", &["host/services/screen"]);
     fx.file(
         "host/services/inspect/LAYER.toml",
-        "[layer]\nallow_siblings = [\"screen\"]\n",
+        "[layer]\n\n[allow_siblings]\ninspect = [\"screen\"]\n",
     );
     let r = fx.run();
     assert_rules(&r, &["config/widens", "dep/sibling-module"]);
     assert_message(&r, "host/services/inspect/LAYER.toml: config/widens");
 
-    // No wildcard.
-    let mut fx = Fx::clean();
-    fx.add_deps("host/services/screen", &["host/services/inspect"]);
-    fx.edit(
-        "host/services/LAYER.toml",
-        "[layer]\n",
-        "[layer]\nallow_siblings = [\"*\"]\n",
-    );
-    assert_rules(&fx.run(), &["config/invalid", "dep/sibling-module"]);
+    // No wildcard, as source or as target.
+    for table in [
+        "[allow_siblings]\nscreen = [\"*\"]\n",
+        "[allow_siblings]\n\"*\" = [\"inspect\"]\n",
+    ] {
+        let mut fx = Fx::clean();
+        fx.add_deps("host/services/screen", &["host/services/inspect"]);
+        fx.append("host/services/LAYER.toml", table);
+        assert_rules(&fx.run(), &["config/invalid", "dep/sibling-module"]);
+    }
 
     // Entries are first-level module names of this layer, never paths to other layers.
     let mut fx = Fx::clean();
     fx.add_deps("host/vmm/boot", &["host/devices/gpu"]);
-    fx.edit(
+    fx.append(
         "host/vmm/LAYER.toml",
-        "[layer]\n",
-        "[layer]\nallow_siblings = [\"../devices\", \"host/devices/gpu\", \"gpu\"]\n",
+        "[allow_siblings]\nboot = [\"../devices\", \"host/devices/gpu\", \"gpu\"]\n",
     );
     let r = fx.run();
     assert_rules(&r, &["config/invalid", "dep/same-level"]);
@@ -439,15 +510,23 @@ fn allow_siblings_cannot_be_abused() {
     assert_message(&r, "`gpu`");
 
     // A sibling exception does not lift LAYER.toml `allow` lists or global rules:
-    // allow_siblings = ["contracts"] in base is just an unknown module.
+    // `contracts` in base is just an unknown module.
     let mut fx = Fx::clean();
     fx.add_deps("host/base/ipc", &["contracts/common"]);
-    fx.edit(
+    fx.append(
         "host/base/LAYER.toml",
-        "[layer]\n",
-        "[layer]\nallow_siblings = [\"contracts\"]\n",
+        "[allow_siblings]\nipc = [\"contracts\"]\n",
     );
     assert_rules(&fx.run(), &["config/invalid", "dep/layer-toml-allow"]);
+
+    // The old per-target list form is gone.
+    let mut fx = Fx::clean();
+    fx.edit(
+        "host/services/LAYER.toml",
+        "[layer]\n",
+        "[layer]\nallow_siblings = [\"inspect\"]\n",
+    );
+    assert_rules(&fx.run(), &["config/invalid"]);
 }
 
 #[test]

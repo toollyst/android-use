@@ -46,7 +46,7 @@ labels         = {}
 
 ### restore
 1. `SnapshotStore`에서 핸들 획득 → `MemorySource` 생성 (로컬 파일 또는 원격)
-2. uffd lazy restore: 페이지 폴트 시 `MemorySource.read`, 워킹셋 prefetch 힌트
+2. uffd lazy restore: 페이지 폴트 시 `MemorySource.read_at`, 워킹셋 prefetch 힌트
 3. 디바이스 state 복원
 4. **VMGenID 증가** → 게스트 restore hook 실행 → `Restore.Notify` 수신 확인
 5. 복제본별 새 토큰 발급(`Auth.Rebind`) → `Restore.Notify` 수신 → Ready

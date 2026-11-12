@@ -8,3 +8,4 @@ description = "Repo automation entry point: cargo xtask <command>"
 
 [dependencies]
 checklayers = { path = "../checklayers" }
+patchlint = { path = "../patchlint" }
