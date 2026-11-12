@@ -66,6 +66,33 @@ pub enum ErrorCode {
     Unimplemented,
 }
 
+impl ErrorCode {
+    /// The wire name: the ADP `error.code`.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::FrameExpired => "FRAME_EXPIRED",
+            Self::NodeGone => "NODE_GONE",
+            Self::TargetGone => "TARGET_GONE",
+            Self::NotActionable => "NOT_ACTIONABLE",
+            Self::Timeout => "TIMEOUT",
+            Self::PolicyDenied => "POLICY_DENIED",
+            Self::Unauthenticated => "UNAUTHENTICATED",
+            Self::UnsupportedVersion => "UNSUPPORTED_VERSION",
+            Self::InvalidRequest => "INVALID_REQUEST",
+            Self::MethodNotFound => "METHOD_NOT_FOUND",
+            Self::InvalidParams => "INVALID_PARAMS",
+            Self::Unimplemented => "UNIMPLEMENTED",
+        }
+    }
+}
+
+impl std::fmt::Display for ErrorCode {
+    /// The wire name.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// The error the contract traits return.
 ///
 /// PLACEHOLDER: the documentation uses only `Result<T>` in the trait signatures and does not
@@ -79,6 +106,36 @@ pub struct Error {
     /// Human-readable description.
     pub message: String,
 }
+
+impl Error {
+    /// An error with a code from the list.
+    pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
+        Self {
+            code: Some(code),
+            message: message.into(),
+        }
+    }
+
+    /// An error no code of the list applies to.
+    pub fn without_code(message: impl Into<String>) -> Self {
+        Self {
+            code: None,
+            message: message.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for Error {
+    /// `CODE: message`, or the message alone without a code.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.code {
+            Some(code) => write!(f, "{code}: {}", self.message),
+            None => f.write_str(&self.message),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
 
 /// Result type of the contract traits.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
