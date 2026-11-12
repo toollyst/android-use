@@ -334,6 +334,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "droiduse-runtime-instance"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "droiduse-contracts-common",
+ "droiduse-contracts-instance",
+ "droiduse-contracts-machine",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "droiduse-vmm-api"
 version = "0.1.0"
 dependencies = [

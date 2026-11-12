@@ -25,6 +25,7 @@ members = [
     "build/patchlint",
     "build/xtask",
     "contracts/*",
+    "host/runtime/instance",
     "host/vmm/api",
 ]
 exclude = [
