@@ -32,6 +32,16 @@ use bytes::Bytes;
 use droiduse_contracts_common::{Labels, Result};
 use futures_io::{AsyncRead, AsyncWrite};
 
+// Value types of `Authenticator` and `Authorizer`. Details: `auth.rs`.
+mod auth;
+
+pub use auth::{
+    Action, AdpCommand, BearerToken, ChannelCtx, CommandScope, Credential, CredentialError,
+    Decision, DenyReason, InstanceRef, InstanceResource, InstanceScope, Origin, PeerIdentity,
+    Principal, PrincipalId, ReasonCode, ReasonCodeError, Resource, TargetRef, TargetResource,
+    Transport,
+};
+
 // ---------------------------------------------------------------------------
 // Snapshot and image stores
 // ---------------------------------------------------------------------------
@@ -93,21 +103,31 @@ pub trait ProfileStore: Send + Sync {
 // ---------------------------------------------------------------------------
 
 /// Authentication. Used by: `host/entrypoints/adp_server`, `host/entrypoints/node`. Core
-/// default: local tokens.
+/// default: local tokens (`host/runtime/auth`).
+///
+/// An implementation compares secrets only in constant time (see [`BearerToken`]) and never
+/// logs a credential.
 #[async_trait]
 pub trait Authenticator: Send + Sync {
-    /// Verifies credentials and returns the principal. A read call, so dropping it
-    /// (cancellation) has no side effects.
+    /// Verifies the credential presented on the channel `ch` and returns the principal.
+    ///
+    /// A credential that does not authenticate is an `Err` with `ErrorCode::Unauthenticated`.
+    /// The caller rejects the channel on every `Err` and on a cancelled call (fail closed). A
+    /// read call, so dropping it (cancellation) has no side effects.
     async fn authenticate(&self, cred: &Credential, ch: &ChannelCtx) -> Result<Principal>;
 }
 
 /// Authorization. Used by: `host/entrypoints/adp_server`, `host/entrypoints/node`.
+///
+/// The server calls it once per check: at attach, before every command in a session, and for
+/// every target it would list. See [`AdpCommand`] for the checks ADP makes.
 #[async_trait]
 pub trait Authorizer: Send + Sync {
     /// Decides whether `who` may do `action` on `on`.
     ///
-    /// **fail closed**: the caller treats both `Err` and a cancelled call (future dropped) as a
-    /// denial. A read call, so dropping it (cancellation) has no side effects.
+    /// **fail closed**: only [`Decision::Allow`] allows; the caller treats a denial, an `Err` and
+    /// a cancelled call (future dropped) alike. A read call, so dropping it (cancellation) has no
+    /// side effects.
     async fn authorize(&self, who: &Principal, action: &Action, on: &Resource) -> Result<Decision>;
 }
 
@@ -213,30 +233,6 @@ pub struct ProfileId(pub String);
 /// One disk CoW layer. PLACEHOLDER.
 #[derive(Debug)]
 pub struct DiskLayer {}
-
-/// Credentials. PLACEHOLDER.
-#[derive(Debug)]
-pub struct Credential {}
-
-/// Context of the channel the credentials came in on. PLACEHOLDER.
-#[derive(Debug)]
-pub struct ChannelCtx {}
-
-/// An authenticated principal. PLACEHOLDER.
-#[derive(Debug, Clone)]
-pub struct Principal {}
-
-/// The action being authorized. PLACEHOLDER.
-#[derive(Debug)]
-pub struct Action {}
-
-/// The resource being authorized. PLACEHOLDER.
-#[derive(Debug)]
-pub struct Resource {}
-
-/// Authorization decision. PLACEHOLDER: value set undecided.
-#[derive(Debug)]
-pub struct Decision {}
 
 /// Session policy (egress, resource limits, TLS visibility, etc.). PLACEHOLDER.
 #[derive(Debug, Clone)]
@@ -461,8 +457,15 @@ mod tests {
         assert_send(mem.prefetch(&ranges));
         assert_send(profiles.open(&profile));
         assert_send(profiles.commit(&profile, DiskLayer {}));
-        assert_send(authn.authenticate(&Credential {}, &ChannelCtx {}));
-        assert_send(authz.authorize(&Principal {}, &Action {}, &Resource {}));
+        let cred = Credential::Bearer(BearerToken::new("t".to_owned()).expect("b64token"));
+        let ch = ChannelCtx::new(Transport::UnixSocket);
+        let who = Principal::new(PrincipalId(String::new()), InstanceScope::All);
+        let action = Action::Adp(AdpCommand::new(
+            "Target.getTargets",
+            CommandScope::Connection,
+        ));
+        assert_send(authn.authenticate(&cred, &ch));
+        assert_send(authz.authorize(&who, &action, &Resource::Server));
         assert_send(policy.session_policy(&labels));
         assert_send(egress.connect(&Destination {}, &FlowCtx {}));
         assert_send(device.profile(&labels));
