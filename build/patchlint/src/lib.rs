@@ -23,6 +23,7 @@
 
 pub mod config;
 pub mod owners;
+pub mod readme;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -94,6 +95,8 @@ pub enum Rule {
     HookFor,
     /// `Scope-cell:` is not a row of docs/scope.md.
     ScopeCell,
+    /// The generated patch table of a `patches/README.md` is missing or out of date.
+    Readme,
     /// The file is not a parseable text patch.
     Parse,
     /// Something in a patch directory that is not a regular file (symlink, ...).
@@ -115,6 +118,7 @@ impl Rule {
             Rule::Layer => "patch/layer",
             Rule::HookFor => "patch/hook-for",
             Rule::ScopeCell => "patch/scope-cell",
+            Rule::Readme => "patch/readme",
             Rule::Parse => "patch/parse",
             Rule::File => "patch/file",
             Rule::Unreadable => "io/unreadable",
@@ -148,7 +152,7 @@ impl Report {
     }
 }
 
-fn slash(p: &Path) -> String {
+pub(crate) fn slash(p: &Path) -> String {
     p.components()
         .map(|c| c.as_os_str().to_string_lossy())
         .collect::<Vec<_>>()
@@ -177,7 +181,108 @@ pub fn check(root: &Path) -> Result<Report, Error> {
     } else {
         None
     };
+    let (per_upstream, mut violations) = scan(root, &cfg)?;
 
+    let mut patches_checked = 0;
+    for (x, files) in &per_upstream {
+        patches_checked += files.len();
+        for rel in files {
+            let ctx = Ctx {
+                root,
+                cfg: &cfg,
+                upstream: x,
+                rel: slash(rel),
+                scope: scope.as_ref(),
+            };
+            lint_file(&ctx, &mut violations);
+        }
+        if cfg.rules.series {
+            check_series(root, x, cfg.upstream[x].series, files, &mut violations);
+        }
+        if cfg.rules.readme {
+            check_readme(root, &cfg, x, files, &mut violations)?;
+        }
+    }
+    violations.sort();
+    violations.dedup();
+    Ok(Report {
+        violations,
+        patches_checked,
+    })
+}
+
+/// The generated README table of upstream `x` from its patch files.
+fn readme_block(root: &Path, cfg: &Config, x: &str, files: &[PathBuf]) -> String {
+    let dir = format!("{UPSTREAM_ROOT}/{x}/{PATCH_DIR}/");
+    let rows: Vec<readme::Row> = readme::order(root, x, files)
+        .into_iter()
+        .map(|path| {
+            let text = fs::read(root.join(format!("{dir}{path}")))
+                .ok()
+                .and_then(|b| String::from_utf8(b).ok())
+                .unwrap_or_default();
+            let raw = check_header(&text, &cfg.header, &mut Vec::new()).raw;
+            readme::Row { path, raw }
+        })
+        .collect();
+    readme::block(cfg, &rows)
+}
+
+fn check_readme(
+    root: &Path,
+    cfg: &Config,
+    x: &str,
+    files: &[PathBuf],
+    out: &mut Vec<Violation>,
+) -> Result<(), Error> {
+    let loc = readme::readme_path(x);
+    let Some(text) = readme::read(root, x)? else {
+        out.push(violation(
+            &loc,
+            Rule::Readme,
+            "missing; it must hold the generated patch table".into(),
+        ));
+        return Ok(());
+    };
+    match readme::splice(&text, &readme_block(root, cfg, x, files)) {
+        Err(why) => out.push(violation(&loc, Rule::Readme, why)),
+        Ok(want) if want != text.replace("\r\n", "\n") => out.push(violation(
+            &loc,
+            Rule::Readme,
+            "the generated patch table is out of date with the patch headers; run `cargo xtask patch-readme`".into(),
+        )),
+        Ok(_) => {}
+    }
+    Ok(())
+}
+
+/// `cargo xtask patch-readme`: rewrites the generated patch table of every upstream's
+/// README. Returns the READMEs that changed. A README without the marker lines is an error
+/// (nothing is guessed about where the table goes).
+pub fn write_readmes(root: &Path) -> Result<Vec<String>, Error> {
+    let cfg = config::load(root)?;
+    let (per_upstream, _) = scan(root, &cfg)?;
+    let mut changed = Vec::new();
+    for (x, files) in &per_upstream {
+        let loc = readme::readme_path(x);
+        let text = readme::read(root, x)?.ok_or_else(|| Error(format!("{loc}: missing")))?;
+        let want = readme::splice(&text, &readme_block(root, &cfg, x, files))
+            .map_err(|why| Error(format!("{loc}: {why}")))?;
+        if want != text {
+            fs::write(root.join(&loc), &want)
+                .map_err(|e| Error(format!("cannot write {loc}: {e}")))?;
+            changed.push(loc);
+        }
+    }
+    Ok(changed)
+}
+
+/// Finds the patch directories and their files. Errors on a patch directory without an
+/// `[upstream.<x>]` entry.
+type Scan = (BTreeMap<String, Vec<PathBuf>>, Vec<Violation>);
+
+fn scan(root: &Path, cfg: &Config) -> Result<Scan, Error> {
+    let upstream = root.join(UPSTREAM_ROOT);
     let mut violations = Vec::new();
     let mut per_upstream: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
     for x in sorted_entries(&upstream)? {
@@ -203,30 +308,7 @@ pub fn check(root: &Path) -> Result<Report, Error> {
             Err(_) => {}
         }
     }
-
-    let mut patches_checked = 0;
-    for (x, files) in &per_upstream {
-        patches_checked += files.len();
-        for rel in files {
-            let ctx = Ctx {
-                root,
-                cfg: &cfg,
-                upstream: x,
-                rel: slash(rel),
-                scope: scope.as_ref(),
-            };
-            lint_file(&ctx, &mut violations);
-        }
-        if cfg.rules.series {
-            check_series(root, x, cfg.upstream[x].series, files, &mut violations);
-        }
-    }
-    violations.sort();
-    violations.dedup();
-    Ok(Report {
-        violations,
-        patches_checked,
-    })
+    Ok((per_upstream, violations))
 }
 
 fn sorted_entries(dir: &Path) -> Result<Vec<String>, Error> {
@@ -388,6 +470,9 @@ struct Fields {
     scope_cell: Option<String>,
     /// `Budget-approved-by:` as written, if present and a valid login.
     approver: Option<String>,
+    /// First value of each header field as written (valid or not), for the README table.
+    /// `Subject` holds the summary after `droiduse: `.
+    raw: BTreeMap<String, String>,
 }
 
 /// A value still holding the template's `<...>` placeholder, or empty.
@@ -539,6 +624,15 @@ fn check_header(text: &str, cfg: &config::Header, out: &mut Vec<(Rule, String)>)
             ));
         }
     }
+    let mut fields = Fields::default();
+    if let Some(first) = subject.first() {
+        let summary = first
+            .split_once("droiduse: ")
+            .map_or(first.as_str(), |(_, s)| s);
+        fields
+            .raw
+            .insert("Subject".into(), summary.trim().to_string());
+    }
     if let Some(v) = single("Subject", &subject, true, out)
         && !is_subject(&v, cfg.numbered_subject)
     {
@@ -574,8 +668,10 @@ fn check_header(text: &str, cfg: &config::Header, out: &mut Vec<(Rule, String)>)
             .map(|(_, v)| v.clone())
             .collect()
     };
-    let mut fields = Fields::default();
     for f in MESSAGE_FIELDS {
+        if let Some(first) = values(f).first() {
+            fields.raw.insert(f.to_string(), first.clone());
+        }
         let Some(v) = single(f, &values(f), true, out) else {
             continue;
         };

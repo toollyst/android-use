@@ -82,7 +82,10 @@ impl Fx {
             fx.file(f, &fs::read_to_string(real.join(f)).unwrap());
         }
         for x in ["wick", "aosp", "kernel"] {
-            fx.file(&format!("third_party/{x}/patches/README.md"), "# patches\n");
+            fx.file(
+                &format!("third_party/{x}/patches/README.md"),
+                &readme_with(""),
+            );
         }
         fx.file("third_party/wick/patches/series", "# order\n");
         fx.file(
@@ -127,8 +130,19 @@ impl Fx {
         )
     }
 
+    /// Regenerates the README tables (so tests of other rules see them up to date), then lints.
     fn run(&self) -> Report {
+        patchlint::write_readmes(self.dir.path()).expect("README tables must generate");
+        self.run_raw()
+    }
+
+    /// Lints without touching the READMEs.
+    fn run_raw(&self) -> Report {
         patchlint::check(self.dir.path()).expect("lint must run")
+    }
+
+    fn read(&self, rel: &str) -> String {
+        fs::read_to_string(self.path(rel)).unwrap()
     }
 
     fn error(&self) -> String {
@@ -931,4 +945,163 @@ fn config_errors_fail_closed() {
     let fx = Fx::new();
     fx.file("third_party/rutabaga/patches/README.md", "");
     assert!(fx.error().contains("[upstream.rutabaga]"));
+}
+
+// ---------------------------------------------------------------- README table
+
+/// A README with hand-written text around a generated block whose body is `body`.
+fn readme_with(body: &str) -> String {
+    format!(
+        "# patches\n\nHand-written intro.\n\n{}\n{}{}\n\n## Plan\nhand-written plan\n",
+        patchlint::readme::BEGIN,
+        if body.is_empty() {
+            "_패치 없음._\n"
+        } else {
+            body
+        },
+        patchlint::readme::END
+    )
+}
+
+const WICK_README: &str = "third_party/wick/patches/README.md";
+
+#[test]
+fn readme_table_is_generated_from_headers() {
+    let fx = Fx::new();
+    fx.wick(GOOD);
+    // Not regenerated yet: out of date.
+    let r = fx.run_raw();
+    assert_rules(&r, &["patch/readme"]);
+    assert_message(&r, "third_party/wick/patches/README.md: patch/readme");
+    assert_message(&r, "cargo xtask patch-readme");
+
+    // Generated: up to date, the rest of the README untouched.
+    let changed = patchlint::write_readmes(fx.dir.path()).unwrap();
+    assert_eq!(changed, vec![WICK_README.to_string()]);
+    assert_clean(&fx.run_raw());
+    let text = fx.read(WICK_README);
+    let want = readme_with(&format!(
+        "| Patch | Summary | Purpose | Hook-for | Layer | Budget | Upstream | Remove-when | Scope-cell |\n\
+         |---|---|---|---|---|---|---|---|---|\n\
+         | [{WICK_NAME}]({WICK_NAME}) | add boot payload hook | let host/vmm/boot supply kernel, initrd and cmdline | host/vmm/boot | vmm | 4 | n/a | upstream offers an equivalent API | Android 부팅 (boot.img/vendor_boot/bootconfig) |\n"
+    ));
+    assert_eq!(text, want);
+    // Idempotent and byte-stable.
+    assert!(patchlint::write_readmes(fx.dir.path()).unwrap().is_empty());
+    assert_eq!(fx.read(WICK_README), want);
+
+    // A header change makes it stale again.
+    fx.wick(&with_field("Purpose:", Some("     something else")));
+    assert_rules(&fx.run_raw(), &["patch/readme"]);
+}
+
+#[test]
+fn readme_hand_edit_inside_the_block_fails() {
+    let fx = Fx::new();
+    fx.wick(GOOD);
+    patchlint::write_readmes(fx.dir.path()).unwrap();
+    fx.edit(WICK_README, "| vmm | 4 |", "| vmm | 40 |");
+    assert_rules(&fx.run_raw(), &["patch/readme"]);
+    // Text outside the block is free.
+    let fx = Fx::new();
+    fx.edit(WICK_README, "hand-written plan", "a different plan");
+    assert_clean(&fx.run_raw());
+}
+
+#[test]
+fn readme_markers_are_required() {
+    for text in [
+        "# patches\nno markers\n".to_string(),
+        readme_with("") + &readme_with(""),
+        format!("{}\n{}\n", patchlint::readme::END, patchlint::readme::BEGIN),
+    ] {
+        let fx = Fx::new();
+        fx.file(WICK_README, &text);
+        assert_rules(&fx.run_raw(), &["patch/readme"]);
+        // The writer does not guess where the table goes.
+        assert!(patchlint::write_readmes(fx.dir.path()).is_err());
+        assert_eq!(fx.read(WICK_README), text);
+    }
+    let fx = Fx::new();
+    fs::remove_file(fx.path(WICK_README)).unwrap();
+    assert_rules(&fx.run_raw(), &["patch/readme"]);
+}
+
+#[test]
+fn readme_rows_follow_series_order() {
+    let fx = Fx::new();
+    let second = "0002-droiduse-second-hook.patch";
+    fx.file(WICK, GOOD);
+    fx.file(
+        &format!("third_party/wick/patches/{second}"),
+        &GOOD.replace("add boot payload hook", "second hook"),
+    );
+    fx.file(
+        "third_party/wick/patches/series",
+        &format!("{second}\n{WICK_NAME}\n"),
+    );
+    assert_clean(&fx.run());
+    let text = fx.read(WICK_README);
+    let a = text.find(second).unwrap();
+    let b = text.find(WICK_NAME).unwrap();
+    assert!(a < b, "series order not kept:\n{text}");
+}
+
+#[test]
+fn readme_with_crlf_line_endings_is_up_to_date() {
+    let fx = Fx::new();
+    fx.wick(GOOD);
+    patchlint::write_readmes(fx.dir.path()).unwrap();
+    let crlf = fx.read(WICK_README).replace('\n', "\r\n");
+    fx.file(WICK_README, &crlf);
+    assert_clean(&fx.run_raw());
+}
+
+#[test]
+fn readme_columns_setting() {
+    let fx = Fx::new();
+    fx.cfg(
+        "columns = [\"patch\", \"summary\", \"purpose\", \"hook-for\", \"layer\", \"budget\", \"upstream\", \"remove-when\", \"scope-cell\"]",
+        "columns = [\"patch\", \"purpose\"]",
+    );
+    fx.wick(GOOD);
+    assert_clean(&fx.run());
+    let text = fx.read(WICK_README);
+    assert!(
+        text.contains(&format!(
+            "| Patch | Purpose |\n|---|---|\n| [{WICK_NAME}]({WICK_NAME}) | let host/vmm/boot supply kernel, initrd and cmdline |\n"
+        )),
+        "{text}"
+    );
+
+    for (to, needle) in [
+        ("columns = [\"purpose\"]", "patch"),
+        ("columns = [\"patch\", \"patch\"]", "twice"),
+        ("columns = [\"patch\", \"author\"]", "author"),
+    ] {
+        let fx = Fx::new();
+        fx.cfg(
+            "columns = [\"patch\", \"summary\", \"purpose\", \"hook-for\", \"layer\", \"budget\", \"upstream\", \"remove-when\", \"scope-cell\"]",
+            to,
+        );
+        let e = fx.error();
+        assert!(e.contains(needle), "`{to}`: {e}");
+    }
+}
+
+#[test]
+fn readme_rule_setting() {
+    let fx = Fx::new();
+    fx.cfg("readme = true", "readme = false");
+    fx.wick(GOOD);
+    fx.file(WICK_README, "# no markers at all\n");
+    assert_clean(&fx.run_raw());
+}
+
+#[test]
+fn readme_cells_escape_pipes() {
+    let fx = Fx::new();
+    fx.wick(&with_field("Purpose:", Some("     a | b")));
+    assert_clean(&fx.run());
+    assert!(fx.read(WICK_README).contains("| a \\| b |"));
 }
