@@ -33,10 +33,10 @@ fn real_config_names_every_target() {
 }
 
 /// The gRPC metadata keys a proto file's header comment lists: the first column of the
-/// lines under `메타데이터 키`, up to the next empty `//` line (`a, b   description`).
+/// lines under `Metadata keys`, up to the next empty `//` line (`a, b   description`).
 fn proto_header_keys(rel: &str) -> BTreeSet<String> {
     let text = std::fs::read_to_string(repo_root().join(rel)).unwrap();
-    let mut lines = text.lines().skip_while(|l| !l.contains("메타데이터 키"));
+    let mut lines = text.lines().skip_while(|l| !l.contains("Metadata keys"));
     assert!(lines.next().is_some(), "{rel}: no metadata key section");
     let mut keys = BTreeSet::new();
     for l in lines.take_while(|l| l.trim_end() != "//") {
