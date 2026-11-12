@@ -11,8 +11,8 @@ commit = "TBD"               # wick이 Firecracker 버전을 고정함 (작성 �
 
 [aosp]
 manifest_url = "https://android.googlesource.com/platform/manifest"
-tag          = "TBD"         # 릴리스 태그 고정. AOSP 소스는 연 2회(Q2/Q4) 공개
-asb_level    = "TBD"         # 적용된 Android Security Bulletin 레벨 (YYYY-MM-DD)
+tag          = "android-17.0.0_r1"         # 릴리스 태그 고정. AOSP 소스는 연 2회(Q2/Q4) 공개
+asb_level    = "2026-06-05"         # 적용된 Android Security Bulletin 레벨 (YYYY-MM-DD)
 
 [kernel]
 gki_branch = "TBD"           # android-common GKI 브랜치
