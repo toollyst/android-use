@@ -1,0 +1,3 @@
+[alias]
+# `cargo xtask <command>`: repo automation entry point (build/xtask).
+xtask = "run --quiet --package xtask --bin xtask --"

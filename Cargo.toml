@@ -1,0 +1,47 @@
+# droid-use Cargo workspace root.
+#
+# members:
+#  - build/*: repo tooling (xtask entry point, layer checker). Not a layer.
+#  - contracts/*: every contract crate is picked up automatically.
+#    Cargo refuses to load the workspace when a directory matched by a member
+#    glob has no Cargo.toml, so contract directories that are not (yet) crates
+#    are listed in `exclude` (an exclude entry for a missing path is harmless).
+#  Crates in other layers are added explicitly. `cargo xtask check-layers` fails
+#  on any Cargo.toml inside a layer that is not a workspace member (including
+#  one inside an excluded contracts directory), so a crate cannot silently
+#  escape the layer rules.
+#
+# exclude:
+#  - contracts/{adp,guest_link,keymint,node}: IDL/schema contracts whose format
+#    is undecided; no Cargo.toml yet. Remove the entry once one becomes a crate.
+#  - contracts/{codegen,compat}: generator config and compat fixtures.
+#  - third_party: upstream code is not ours (ADR-0003); it is never a workspace
+#    member and is not linted as our code by clippy.
+[workspace]
+resolver = "3"
+members = [
+    "build/checklayers",
+    "build/xtask",
+    "contracts/*",
+]
+exclude = [
+    "contracts/adp",
+    "contracts/codegen",
+    "contracts/compat",
+    "contracts/guest_link",
+    "contracts/keymint",
+    "contracts/node",
+    "third_party",
+]
+
+[workspace.package]
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+ignore = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+toml = "1"
