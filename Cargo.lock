@@ -601,9 +601,14 @@ dependencies = [
 name = "droiduse-testing-e2e"
 version = "0.1.0"
 dependencies = [
+ "droiduse-contracts-adp",
+ "futures-util",
+ "rmcp",
  "serde",
  "serde_json",
  "tempfile",
+ "tokio",
+ "tokio-tungstenite",
  "toml",
 ]
 
