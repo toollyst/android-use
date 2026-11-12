@@ -25,7 +25,7 @@
           { "name": "method", "description": "Domain.command. Unknown: METHOD_NOT_FOUND.", "type": "string" },
           { "name": "params", "optional": true, "type": "object" },
           { "name": "traceparent", "description": "W3C Trace Context traceparent (https://www.w3.org/TR/trace-context/ section 3.2). Untrusted. A value that does not follow section 3.2, including an all-zero trace-id or parent-id, is ignored (sections 3.2.2.3 and 3.2.2.4); the request is not rejected for it. Whether the server continues the client's trace or starts a new trace linked to it is a server setting; default: a new trace with a link.", "optional": true, "type": "string" },
-          { "name": "tracestate", "description": "W3C Trace Context tracestate (section 3.3). Untrusted. Ignored when traceparent is absent or ignored (sections 3.3 and 4.2).", "optional": true, "type": "string" }
+          { "name": "tracestate", "description": "W3C Trace Context tracestate (section 3.3). Untrusted. Ignored when traceparent is absent (section 4.2) or ignored (sections 3.3 and 4.3).", "optional": true, "type": "string" }
         ]
       },
       {
