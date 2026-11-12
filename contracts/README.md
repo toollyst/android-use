@@ -1,18 +1,18 @@
 # contracts/
 
-레이어 경계의 유일한 인터페이스. 상세: `docs/03-contracts.md`
+The only interface across layer boundaries. Details: `docs/03-contracts.md`
 
-| 디렉터리 | 경계 | 형식 |
+| Directory | Boundary | Form |
 |---|---|---|
 | `machine/` | runtime ↔ vmm | Rust trait |
-| `device/` | vmm ↔ devices | vhost-user + 확장 |
-| `guest_link/` | runtime·services ↔ guest | IDL → codegen |
-| `keymint/` | guest KeyMint HAL ↔ host/runtime/keymint | AOSP kmr wire + 프레이밍·인증 |
+| `device/` | vmm ↔ devices | vhost-user + extensions |
+| `guest_link/` | runtime, services ↔ guest | IDL → codegen |
+| `keymint/` | guest KeyMint HAL ↔ host/runtime/keymint | AOSP kmr wire + framing and authentication |
 | `instance/` | services ↔ runtime | Rust trait |
-| `adp/` | host/entrypoints/adp_server ↔ clients·외부 클라이언트 | JSON-RPC 스키마 (`docs/04-adp.md`) |
-| `node/` | control plane ↔ node | IDL(gRPC) |
-| `spi/` | 코어 ↔ 확장 구현 | Rust trait (`docs/09-oss-and-saas.md`) |
-| `codegen/` | 없음: 생성기와 설정은 `build/codegen/` (`codegen.toml`, `cargo xtask codegen`), 생성 코드는 각 계약의 `src/generated/` | - |
-| `compat/` | 이전 버전 픽스처, 하위호환 테스트 | - |
+| `adp/` | host/entrypoints/adp_server ↔ clients, external clients | JSON-RPC schema (`docs/04-adp.md`) |
+| `node/` | control plane ↔ node | IDL (gRPC) |
+| `spi/` | core ↔ extension implementations | Rust trait (`docs/09-oss-and-saas.md`) |
+| `codegen/` | None: the generator and its configuration are `build/codegen/` (`codegen.toml`, `cargo xtask codegen`); generated code is in each contract's `src/generated/` | - |
+| `compat/` | Fixtures of earlier versions, backward-compatibility tests | - |
 
-각 계약 디렉터리에는 `VERSION`(semver)이 있어야 한다. 변경 절차: `CLAUDE.md` §4
+Every contract directory must have a `VERSION` (semver). Change procedure: `CLAUDE.md` §4
