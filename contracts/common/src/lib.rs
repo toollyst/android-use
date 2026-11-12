@@ -93,18 +93,27 @@ impl std::fmt::Display for ErrorCode {
     }
 }
 
-/// The error the contract traits return.
+/// The error the contract traits return: a code from the list when one applies, a
+/// human-readable message, and which component answered.
 ///
-/// PLACEHOLDER: the documentation uses only `Result<T>` in the trait signatures and does not
-/// define the error type. The only documented error codes are the ADP list, so some failures
-/// are not on it, such as VM, device and storage failures. Those failures use `code: None`.
-/// The error model (code scheme, cause chain, mapping on the wire) is undecided.
+/// Some failures have no code on the list, such as VM, device and storage failures; they use
+/// `code: None`. How such an error appears on ADP, whose `error.code` is required, is not
+/// defined yet.
+///
+/// Built with [`Error::new`] or [`Error::without_code`] (the struct is `#[non_exhaustive]`).
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Error {
     /// The documented error code, if one applies. `None` if no code applies.
     pub code: Option<ErrorCode>,
     /// Human-readable description.
     pub message: String,
+    /// The component and operation that answered, as `<component>#<operation>`: the repository
+    /// path of the component's module and the name of its operation, for example
+    /// `host/vmm/api#create` ([`Error::with_reason`]). The component that decides the error sets
+    /// it; a layer that passes the error on keeps it. On ADP it is `error.data.reason`. It is for
+    /// diagnosis: a client decides by `code`, not by `reason`.
+    pub reason: Option<String>,
 }
 
 impl Error {
@@ -113,6 +122,7 @@ impl Error {
         Self {
             code: Some(code),
             message: message.into(),
+            reason: None,
         }
     }
 
@@ -121,17 +131,29 @@ impl Error {
         Self {
             code: None,
             message: message.into(),
+            reason: None,
         }
+    }
+
+    /// This error with `reason` set to `<component>#<operation>`, for example
+    /// `with_reason("host/vmm/api", "create")`.
+    pub fn with_reason(mut self, component: &str, operation: &str) -> Self {
+        self.reason = Some(format!("{component}#{operation}"));
+        self
     }
 }
 
 impl std::fmt::Display for Error {
-    /// `CODE: message`, or the message alone without a code.
+    /// `CODE: message`, or the message alone without a code; then ` (reason)` when set.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.code {
-            Some(code) => write!(f, "{code}: {}", self.message),
-            None => f.write_str(&self.message),
+        if let Some(code) = self.code {
+            write!(f, "{code}: ")?;
         }
+        f.write_str(&self.message)?;
+        if let Some(reason) = &self.reason {
+            write!(f, " ({reason})")?;
+        }
+        Ok(())
     }
 }
 
@@ -219,6 +241,21 @@ mod tests {
         fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
             Poll::Ready(None)
         }
+    }
+
+    #[test]
+    fn error_carries_code_message_and_reason() {
+        let e = Error::new(ErrorCode::Unimplemented, "not built yet")
+            .with_reason("host/vmm/api", "create");
+        assert_eq!(e.code, Some(ErrorCode::Unimplemented));
+        assert_eq!(e.reason.as_deref(), Some("host/vmm/api#create"));
+        assert_eq!(
+            e.to_string(),
+            "UNIMPLEMENTED: not built yet (host/vmm/api#create)"
+        );
+        let e = Error::without_code("disk full");
+        assert_eq!(e.to_string(), "disk full");
+        assert_eq!(e.reason, None);
     }
 
     #[test]
