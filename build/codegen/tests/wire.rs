@@ -277,3 +277,36 @@ fn binary_is_strict_base64() {
         );
     }
 }
+
+#[test]
+fn target_types_on_the_real_commands() {
+    use droiduse_contracts_adp::input::DispatchTouchParams;
+    use droiduse_contracts_adp::screen::CaptureScreenshotParams;
+    use droiduse_contracts_adp::target::{DetachFromTargetParams, TargetType};
+    assert_eq!(
+        DispatchTouchParams::TARGET_TYPES,
+        Some(&[TargetType::Display][..])
+    );
+    assert_eq!(
+        CaptureScreenshotParams::TARGET_TYPES,
+        Some(&[TargetType::Display][..])
+    );
+    assert_eq!(
+        DetachFromTargetParams::TARGET_TYPES.map(<[_]>::len),
+        Some(5)
+    );
+    // session-scoped but not fixed yet, and connection-scoped
+    assert_eq!(GetTreeParams::TARGET_TYPES, None);
+    assert_eq!(
+        droiduse_contracts_adp::connection::HelloParams::TARGET_TYPES,
+        None
+    );
+}
+
+#[test]
+fn request_traceparent_is_an_optional_string() {
+    let v = json!({ "id": 1, "method": "Connection.hello", "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01" });
+    let r: Request = serde_json::from_value(v.clone()).unwrap();
+    assert!(r.traceparent.is_some());
+    assert_eq!(serde_json::to_value(&r).unwrap(), v);
+}

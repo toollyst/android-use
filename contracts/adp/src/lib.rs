@@ -5,11 +5,17 @@
 //! - 정의: `protocol.json`. CDP 프로토콜 정의와 같은 구조다: `domains[]`마다 `domain`, `types`,
 //!   `commands`(`parameters`, `returns`), `events`(`parameters`), 그리고 `description`, `experimental`,
 //!   `deprecated`, `optional`, `$ref`, `enum`, `items`, CDP의 `binary` 타입(base64, RFC 4648 §4, 패딩).
-//!   CDP에 없는 확장: 최상위 `errors`(ADP 에러 코드), 최상위 `envelope`(Request·Response·Event·Error
-//!   메시지 타입과 바이너리 메시지 `binary`), 커맨드·이벤트의 `scope`(`connection` | `session` | `both`),
-//!   `format`(`integer`에 `int32`·`uint32`, 폭이 정해진 경우에만; `string`에 `int64`·`uint64`, 64비트
-//!   정수는 JSON 10진 문자열), 태그 유니온의 `discriminator`·`variants`, optional 속성의 `nullable`
-//!   (명시적 `null`이 값을 지운다: 없음·`null`·값의 세 상태).
+//!   CDP에 없는 확장:
+//!   - 최상위 `errors`: ADP 에러 코드.
+//!   - 최상위 `envelope`: Request·Response·Event·Error 메시지 타입과, 바이너리 메시지 형식 `binary`
+//!     (서버→클라이언트, 클라이언트→서버 `App.uploadChunk`).
+//!   - 커맨드·이벤트의 `scope`: `connection` | `session` | `both`.
+//!   - 커맨드의 `targetTypes`: 그 커맨드를 받는 세션의 타깃 타입(`Target.TargetType` 값). 없으면 아직
+//!     정해지지 않은 것이다 (모든 타입이라는 뜻이 아니다).
+//!   - `format`: `integer`에 `int32`·`uint32`(폭이 정해진 경우에만), `string`에 `int64`·`uint64`
+//!     (64비트 정수는 JSON 10진 문자열).
+//!   - 태그 유니온의 `discriminator`·`variants`.
+//!   - optional 속성의 `nullable`: 명시적 `null`이 값을 지운다 (없음·`null`·값의 세 상태).
 //! - 버전은 `VERSION` 하나가 원천이다. `protocol.json`에 버전을 두지 않는다.
 //! - 문서가 형태까지 정한 것만 정의에 있다.
 //! - 생성 코드: `build/codegen`(`cargo xtask codegen`)이 `src/generated/`에 만들고 커밋한다.

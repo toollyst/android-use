@@ -858,3 +858,110 @@ fn nullable_rules() {
     v["domains"][1]["types"][2]["properties"][5]["items"]["nullable"] = json!(true);
     assert_eq!(problems(&v), ["adp/unknown-key"]);
 }
+
+// ---------------------------------------------------------------------------
+// targetTypes
+// ---------------------------------------------------------------------------
+
+/// The fixture with a Target.TargetType enum and `targetTypes` on getTree.
+fn def_tt() -> Value {
+    let mut v = def();
+    v["domains"][0]["types"] = json!([
+        { "id": "TargetType", "type": "string", "enum": ["instance", "display", "window"] }
+    ]);
+    v["domains"][1]["commands"][0]["targetTypes"] = json!(["display", "window"]);
+    v
+}
+
+#[test]
+fn target_types_are_a_command_constant() {
+    let out = gen_ok(&def_tt());
+    assert_has(
+        &out,
+        "const TARGET_TYPES: ::core::option::Option<&'static [target::TargetType]>;",
+    );
+    assert_has(
+        &out,
+        "const TARGET_TYPES: ::core::option::Option<&'static [super::target::TargetType]> = ::core::option::Option::Some(&[super::target::TargetType::Display, super::target::TargetType::Window]);",
+    );
+    // a command without targetTypes: not fixed yet
+    assert_has(
+        &out,
+        "const TARGET_TYPES: ::core::option::Option<&'static [super::target::TargetType]> = ::core::option::Option::None;",
+    );
+}
+
+#[test]
+fn without_the_target_type_enum_the_trait_has_no_target_types() {
+    let out = gen_ok(&def());
+    assert!(!out.contains("TARGET_TYPES"));
+}
+
+/// A fixture edit and the rule id it must produce.
+type Case<'a> = (&'a dyn Fn(&mut Value), &'a str);
+
+#[test]
+fn target_types_rules() {
+    let cases: [Case; 6] = [
+        (
+            &|v| v["domains"][1]["commands"][0]["targetTypes"] = json!([]),
+            "adp/shape",
+        ),
+        (
+            &|v| v["domains"][1]["commands"][0]["targetTypes"] = json!(["display", "display"]),
+            "adp/duplicate",
+        ),
+        (
+            &|v| v["domains"][1]["commands"][0]["targetTypes"] = json!(["tablet"]),
+            "adp/unresolved-ref",
+        ),
+        (
+            &|v| v["domains"][1]["commands"][0]["targetTypes"] = json!("display"),
+            "adp/type",
+        ),
+        // connection-scoped commands are not sent in a session
+        (
+            &|v| v["domains"][1]["commands"][1]["targetTypes"] = json!(["display"]),
+            "adp/shape",
+        ),
+        // events take no targetTypes
+        (
+            &|v| v["domains"][1]["events"][0]["targetTypes"] = json!(["display"]),
+            "adp/unknown-key",
+        ),
+    ];
+    for (f, rule) in cases {
+        let mut v = def_tt();
+        f(&mut v);
+        assert_eq!(problems(&v), [rule], "{v}");
+    }
+}
+
+#[test]
+fn target_type_setting() {
+    // the enum is missing while a command uses targetTypes
+    let mut v = def_tt();
+    v["domains"][0].as_object_mut().unwrap().remove("types");
+    assert_eq!(problems(&v), ["adp/setting"]);
+    // the setting names a type that is not a string enum
+    let s = Settings {
+        target_type: "UI.FrameId".into(),
+        ..Settings::default()
+    };
+    assert_eq!(problems_with(&def_tt(), &s), ["adp/setting"]);
+    // another enum can be configured
+    let mut v = def_tt();
+    v["domains"][1]["types"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({ "id": "Kind", "type": "string", "enum": ["display", "window"] }));
+    let s = Settings {
+        target_type: "UI.Kind".into(),
+        ..Settings::default()
+    };
+    let out = gen_with(&v, &s).unwrap();
+    assert_has(
+        &out,
+        "const TARGET_TYPES: ::core::option::Option<&'static [ui::Kind]>;",
+    );
+}

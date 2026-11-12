@@ -36,6 +36,11 @@ integer_without_format = "i64"
 # (docs/10-security.md §4), 모르는 입력은 거부(fail closed).
 deny_unknown_fields = true
 
+# 커맨드의 `targetTypes`가 값을 고르는 문자열 enum 타입 ("<Domain>.<Type>"). 기본 "Target.TargetType":
+# protocol.json이 targetTypes를 그 타입의 값으로 정의한다. 커맨드가 targetTypes를 쓰는데 이 타입이 없거나
+# 문자열 enum이 아니면 오류다.
+target_type = "Target.TargetType"
+
 # format 없는 `integer` 속성별 고정. 키: "<Domain>.<Type>.<property>",
 # "<Domain>.<command>.parameters.<name>", "<Domain>.<command>.returns.<name>",
 # "<Domain>.<event>.parameters.<name>". 값: "i64", "i32", "u32". 정의에 없는 키는 오류다.
