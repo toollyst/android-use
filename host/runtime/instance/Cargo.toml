@@ -1,0 +1,18 @@
+[package]
+name = "droiduse-runtime-instance"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "host/runtime/instance: InstanceManager over an injected MachineFactory"
+
+[dependencies]
+droiduse-contracts-common = { path = "../../../contracts/common" }
+droiduse-contracts-instance = { path = "../../../contracts/instance" }
+droiduse-contracts-machine = { path = "../../../contracts/machine" }
+async-trait.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+bytes.workspace = true
+tokio.workspace = true
