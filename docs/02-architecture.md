@@ -32,15 +32,15 @@
 
 ## 2. 의존 규칙
 1. 상위 → 하위로만 의존한다. (`LAYERS.toml`)
-2. 같은 레벨 형제끼리 직접 의존 금지. `host/services/screen`은 `host/services/inspect`를 직접 호출하지 않고 runtime의 채널(계약)을 거친다.
-3. `contracts/`는 모두가 참조하고, `contracts/` 자신은 어디에도 의존하지 않는다.
+2. 같은 레벨 형제끼리 직접 의존 금지. 같은 레이어 안의 형제 모듈끼리도 직접 의존하지 않는다. `host/services/screen`은 `host/services/inspect`를 직접 호출하지 않고 runtime의 채널(계약)을 거친다. 예외는 레이어 루트 `LAYER.toml`에 선언한 단방향 간선뿐이다.
+3. `contracts/`는 모두가 참조하고, `contracts/` 자신은 다른 레이어에 의존하지 않는다. 외부 crate는 `LAYERS.toml`의 허용 목록에 있는 것만 쓴다.
 4. `testing/`은 모든 것을 참조할 수 있지만 제품 코드는 `testing/`에 의존하지 않는다.
 5. `clients/`는 `contracts/`에만 의존하고, 제품 코드는 `clients/`에 의존하지 않는다.
 
 ### 강제 방법
 | 대상 | 도구 |
 |---|---|
-| Rust crate | `build/checklayers`: `cargo metadata`로 의존 그래프를 검사. 디렉터리별 `LAYER.toml`로 허용 목록을 좁힘 (Chromium DEPS와 같은 역할) |
+| Rust crate | `build/checklayers`: `cargo metadata`로 의존 그래프를 검사. 디렉터리별 `LAYER.toml`로 허용 목록을 좁힘 (Chromium DEPS와 같은 역할). 형제 모듈 예외는 레이어 루트 `LAYER.toml`의 단방향 간선, contracts의 외부 crate는 `LAYERS.toml` 허용 목록으로 검사 |
 | AOSP vendor 모듈 | Soong `visibility` 속성 |
 | 금지 개념 | `LAYERS.toml [forbidden]` 기반 lint (예: devices에 android 개념 금지) |
 | 소유권 | `OWNERS`: 계약·패치는 별도 승인 그룹 |
