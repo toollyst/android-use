@@ -103,7 +103,7 @@ Debug.SetAdb      { enabled }
 // 복원
 Restore.Notify    ← { generation, completed_steps[] }   // VMGenID 변경 후 게스트 재초기화 완료 알림
 ```
-- gRPC over vsock이다. 토큰은 불투명 비밀(bytes), `vmgenid`는 16바이트다. Hello·Auth 말고는 모든 호출이 양방향 모두 세션 토큰을 메타데이터 `droiduse-session-token-bin`에 싣고, 없거나 틀리면 `UNAUTHENTICATED`다. trace는 W3C Trace Context(`traceparent`, `tracestate`) 메타데이터로 싣는다.
+- gRPC over vsock이다. 게스트가 연결 하나를 열고 listening 포트를 열지 않는다. 호스트 → 게스트 호출도 이 연결로 가며 호출마다 자기 상태·deadline·취소를 가진다. 토큰은 불투명 비밀(bytes), `vmgenid`는 16바이트다. Hello·Auth 말고는 모든 호출이 양방향 모두 세션 토큰을 메타데이터 `droiduse-session-token-bin`에 싣고, 없거나 틀리면 `UNAUTHENTICATED`다. trace는 W3C Trace Context(`traceparent`, `tracestate`) 메타데이터로 싣는다.
 - KeyMint HAL 채널은 guest_link와 **분리된 전용 vsock 포트**를 쓰며 계약은 `keymint`다 (아래).
 
 ## keymint
