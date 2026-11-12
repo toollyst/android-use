@@ -1,0 +1,44 @@
+# third_party/patches.toml: 패치 lint 정책 (tools/patch/lint.sh → build/patchlint).
+# 규칙: docs/08-upstream-and-patches.md §2. 아래 값은 모두 기본값이다. 키를 빼면 기본값이 적용된다.
+# 모르는 키·잘못된 값은 설정 오류이며 lint가 실행되지 않는다 (exit 2).
+
+[budget]
+# 패치 하나가 `Budget:`으로 선언할 수 있는 최대 줄 수. 넘으면 승인된 오버런이 있어야 한다.
+cap = 30
+# 줄 수 세는 법: "added+removed" | "added" | "max" (추가·삭제 중 큰 쪽)
+count = "added+removed"
+# 오버런 승인: "owners" = `Budget-approved-by: <GitHub 로그인>`이 OWNERS에서 그 패치를 소유한 사용자여야 한다.
+#              "forbidden" = cap을 넘는 `Budget:`은 언제나 위반.
+overrun = "owners"
+
+[header]
+# `[PATCH n/m]`, `[PATCH vN]`, `[PATCH vN n/m]` 제목 접두를 허용할지 (기본: `[PATCH] droiduse: `만).
+numbered_subject = false
+# `From:`이 유효한 메일박스 하나(`이름 <user@host>` 또는 `user@host`)여야 하는지.
+from_mailbox = true
+
+[marker]
+# 줄을 추가하지 않는 hunk(삭제만 하는 hunk, 파일 삭제): "fail" = `droiduse:` 마커를 달 수 없으므로 위반 | "allow" = 마커 불필요
+removal_only = "fail"
+
+[rules]
+file_name = true               # 파일 이름 `NNNN-droiduse-<name>.patch` (<name>: 소문자 kebab-case)
+series = true                  # series가 모든 패치를 정확히 한 번 나열하고, 나열한 파일이 모두 있다
+layer_matches_upstream = true  # `Layer:`가 아래 [upstream.<x>].layer와 같다
+hook_for_exists = true         # `Hook-for:` 경로가 레포에 있다
+scope_cell_exists = true       # `Scope-cell:`이 docs/scope.md 표 행의 기능 칸과 같다
+
+# third_party/<x>마다: Layer 대응, series 형식("file" = 한 줄에 패치 파일 하나,
+# "project-file" = `<project-path> <patch-file>`), 선택적으로 cap 재정의(cap = <줄 수>).
+# patches/ 디렉터리가 있는 upstream은 여기에 있어야 한다.
+[upstream.wick]
+layer = "vmm"
+series = "file"
+
+[upstream.aosp]
+layer = "guest"
+series = "project-file"
+
+[upstream.kernel]
+layer = "guest"
+series = "file"

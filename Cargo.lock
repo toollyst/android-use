@@ -334,8 +334,11 @@ name = "patchlint"
 version = "0.1.0"
 dependencies = [
  "diffy",
+ "globset",
  "mailparse",
+ "serde",
  "tempfile",
+ "toml",
 ]
 
 [[package]]

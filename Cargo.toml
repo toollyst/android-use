@@ -48,7 +48,9 @@ futures-core = { version = "0.3.34", default-features = false, features = ["allo
 futures-io = "0.3.34"
 # build/ 툴링 전용.
 # diffy: git diff 파서 (build/patchlint). mailparse: RFC 5322/2047 헤더 파서 (build/patchlint).
+# globset: OWNERS glob 매칭 (build/patchlint, ignore가 이미 쓰는 crate).
 diffy = { version = "0.5.2", default-features = false }
+globset = "0.4"
 ignore = "0.4"
 mailparse = "0.18.0"
 serde = { version = "1", features = ["derive"] }
