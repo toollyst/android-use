@@ -54,7 +54,15 @@
   5. 트리에 대응되지 않는 레이어(게임 surface 등)는 `layer` 노드로 붙는다
 
 ## 4. 메시지 형식
-CDP와 같은 JSON-RPC 스타일. 64비트 정수(`vsyncId`, `sfFrame` 등)는 JSON에서 10진 문자열로, 32비트 이하 정수는 숫자로 보낸다.
+CDP와 같은 JSON-RPC 스타일. 정의 파일은 `contracts/adp/protocol.json`이다.
+- `id`는 정수(2^53 미만)이고 연결 안에서 진행 중인 요청끼리 겹치지 않는다.
+- `sessionId`는 연결 수준 호출(`Connection.*`, 세션 밖의 `Target.*`)에서는 없고, 세션으로 가는 모든 메시지에는 반드시 있다.
+- 에러는 `{ "id", "error": { "code": "<에러 코드 이름>", "message", "data"? } }`이다. 코드는 아래 에러 코드 목록(`contracts/common` `ErrorCode`와 같은 코드 공간)이다.
+- 64비트 정수(`vsyncId`, `sfFrame` 등)는 JSON에서 10진 문자열로, 32비트 이하 정수는 숫자로 보낸다.
+- 바이너리 WebSocket 메시지는 앞 8바이트(big-endian 부호 없는 정수)가 그 메시지가 속한 요청의 `id`이고 나머지가 내용이다. 서버는 같은 `id`의 응답보다 먼저 보낸다.
+- 인증: WebSocket 업그레이드의 `Authorization: Bearer` 헤더(RFC 6750), 또는 첫 메시지 `Connection.auth`. 인증 전에는 다른 모든 메시지를 `UNAUTHENTICATED`로 거부한다. URL 쿼리 문자열의 토큰은 받지 않는다. 두 경로 모두 `Authenticator` SPI로 검증한다.
+- 노드 액션은 `resolveOn`(`dispatched` | `frameCommitted` | `idle`, 기본 `frameCommitted`)으로 응답 시점을 고르고 그 시점의 `frameId`를 돌려준다(`dispatched`는 없음). `idle`의 판정 기준과 기본 시간 제한은 서버 설정이다.
+- 스크린샷은 `transfer`(`binary` | `base64`, 기본 `binary`)로 전달 방식을 고른다.
 ```jsonc
 // 요청
 { "id": 7, "sessionId": "s_abc", "method": "UI.getTree", "params": { "sources": ["view","compose","a11y"], "depth": -1 } }
@@ -85,12 +93,13 @@ type Rect = { x: number; y: number; w: number; h: number };
 ## 5. 도메인
 | 도메인 | 커맨드 | 이벤트 |
 |---|---|---|
-| `Target` | `getTargets` (디스플레이, 윈도우, 프로세스, WebView), `attachToTarget` | `targetCreated/Destroyed` |
+| `Connection` | `auth(token)`, `hello(protocolVersion)` | - |
+| `Target` | `getTargets` (인스턴스, 디스플레이, 윈도우, 프로세스, WebView), `attachToTarget(targetId)` → `sessionId` | `targetCreated/Destroyed` |
 | `UI` | `getTree(sources, depth, windowId?)`, `querySelector(selector)`, `querySelectorAll`, `getNode(id)`, `describe(id)` | `treeMutated`, `windowChanged`, `focusChanged`, `imeChanged` |
 | `Accessibility` | `getFullAXTree`, `performAction(nodeId, action, args)` | - |
-| `Input` | 좌표: `dispatchTouch`, `dispatchKey`, `insertText` / 노드: `click`, `longClick`, `setText`, `scrollTo`, `scrollBy`, `swipe` | - |
-| `Screen` | `captureScreenshot(region?, layer?, frameId?, format)`, `startScreencast`, `stopScreencast`, `getDisplays` | `frameCommitted`, `screencastFrame` |
-| `App` | `install`, `uninstall`, `launch(pkg, activity?, intent?)`, `stop`, `clearData`, `list`, `getActivityStack`, `grantPermission`, `pushFile`, `pullFile` | `activityLifecycle`, `anr`, `crash`, `notificationPosted` |
+| `Input` | 좌표: `dispatchTouch(type, pointers)`, `dispatchKey` (`KEYCODE_*` 이름), `insertText(text)` / 노드: `click`, `longClick`, `setText`, `scrollTo`, `scrollBy`, `swipe` (`resolveOn`) | - |
+| `Screen` | `captureScreenshot(region?, layer?, frameId?, format, transfer?)`, `startScreencast`, `stopScreencast`, `getDisplays` | `frameCommitted`, `screencastFrame` |
+| `App` | `install(source)`, `uninstall`, `launch(pkg, activity?, intent?)`, `stop`, `clearData`, `list`, `getActivityStack`, `grantPermission`, `pushFile`, `pullFile` | `activityLifecycle`, `anr`, `crash`, `notificationPosted` |
 | `Network` | `enable`, `getResponseBody`, `setPolicy` | `requestWillBeSent`, `responseReceived`, `flowOpened/Closed` |
 | `Log` | `enable(filters)` | `entryAdded` |
 | `Overlay` | `highlightNode`, `hideHighlight` | - |
@@ -145,5 +154,5 @@ ADP를 LLM이 쓰기 좋게 요약한 형태로 노출한다.
 압축 규칙: 보이지 않는 노드 제거, 의미 없는 컨테이너 접기, 텍스트 정규화, 노드마다 `[id] role "text" (bounds)` 한 줄 표현.
 
 ## 9. 버전 관리
-- `contracts/adp/VERSION` (semver). `Hello` 단계에서 협상한다.
+- `contracts/adp/VERSION` (semver). 인증 다음 `Connection.hello`에서 협상한다. major가 같고 0.x면 minor도 같아야 호환이다(semver caret 규칙). 아니면 `UNSUPPORTED_VERSION`.
 - 도메인과 필드는 추가만 하위호환으로 허용한다. 제거나 의미 변경은 major 증가.
