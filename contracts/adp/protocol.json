@@ -127,6 +127,24 @@
           ]
         },
         {
+          "name": "createTarget",
+          "description": "Creates a new instance and answers with its instance target once the instance is ready to use; targetCreated is sent for it. The instance is built from the server's configured defaults (which image and VM size is a server setting). Authorized as this command on the server, not on an instance. A failure on the way answers with the error, and no instance remains.",
+          "scope": "connection",
+          "parameters": [],
+          "returns": [
+            { "name": "targetId", "description": "The new instance target.", "$ref": "TargetID" }
+          ]
+        },
+        {
+          "name": "closeTarget",
+          "description": "Stops and destroys the instance target targetId. Every session attached to it or beneath it ends first (detachedFromTarget, reason targetGone), then targetDestroyed is sent. Authorized as this command on that instance. A targetId that names no existing target: TARGET_GONE. A target that is not an instance target: INVALID_PARAMS.",
+          "scope": "connection",
+          "parameters": [
+            { "name": "targetId", "$ref": "TargetID" }
+          ],
+          "returns": []
+        },
+        {
           "name": "attachToTarget",
           "description": "Attaches to a target. Instance targets: without a session. Other targets: in the session of the target they sit beneath. Denied by the Authorizer: POLICY_DENIED. Gone: TARGET_GONE.",
           "scope": "both",
