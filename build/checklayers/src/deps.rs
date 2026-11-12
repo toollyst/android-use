@@ -203,7 +203,7 @@ fn dep_kind(d: &Dependency) -> &'static str {
 
 pub fn check(root: &Path, cfg: &Config, members: &[Member], out: &mut Vec<Violation>) {
     for m in members {
-        let loc = m.dir.join("Cargo.toml").display().to_string();
+        let loc = crate::slash(&m.dir.join("Cargo.toml"));
         let src = match place(cfg, &m.dir) {
             Place::Layer(l) => l,
             Place::Tooling => continue,
@@ -260,7 +260,7 @@ pub fn check(root: &Path, cfg: &Config, members: &[Member], out: &mut Vec<Violat
                 ));
                 continue;
             };
-            let dloc = format!("{kind} `{}` ({})", d.name, drel.display());
+            let dloc = format!("{kind} `{}` ({})", d.name, crate::slash(&drel));
             let dst = match place(cfg, &drel) {
                 Place::Layer(l) => l,
                 Place::Tooling | Place::Unlayered => {
@@ -269,7 +269,7 @@ pub fn check(root: &Path, cfg: &Config, members: &[Member], out: &mut Vec<Violat
                         loc.clone(),
                         format!(
                             "{dloc}: `{}` is not in any layer; layer code may depend only on layers",
-                            drel.display()
+                            crate::slash(&drel)
                         ),
                     ));
                     continue;
@@ -330,7 +330,7 @@ fn check_edge(cfg: &Config, edge: &Edge<'_>, chain: &[&DirConfig], out: &mut Vec
         dloc,
     } = *edge;
     if src.name == dst.name {
-        // Same layer: only within one first-level module, or to an `allow_siblings` module.
+        // Same layer: only within one first-level module, or along an `[allow_siblings]` edge.
         let (a, b) = (
             module_under(src_dir, &src.path),
             module_under(dst_dir, &src.path),
@@ -338,8 +338,11 @@ fn check_edge(cfg: &Config, edge: &Edge<'_>, chain: &[&DirConfig], out: &mut Vec
         if a == b {
             return;
         }
-        let root_cfg = cfg.layer_root_config(src);
-        if !b.is_empty() && root_cfg.is_some_and(|c| c.allow_siblings.contains(&b)) {
+        let listed = cfg
+            .layer_root_config(src)
+            .and_then(|c| c.allow_siblings.get(&a))
+            .is_some_and(|targets| targets.contains(&b));
+        if listed {
             return;
         }
         let show = |m: &str| {
@@ -353,13 +356,12 @@ fn check_edge(cfg: &Config, edge: &Edge<'_>, chain: &[&DirConfig], out: &mut Vec
             Rule::SiblingModule,
             loc.to_string(),
             format!(
-                "{dloc}: `{}` -> `{}` are sibling modules of layer `{}` ({}) and may not depend on each other directly (`{}` is not in allow_siblings of {}/LAYER.toml)",
+                "{dloc}: `{}` -> `{}` are sibling modules of layer `{}` ({}) and may not depend on each other directly (the edge is not in [allow_siblings] of {}/LAYER.toml)",
                 show(&a),
                 show(&b),
                 src.name,
-                src.path.display(),
-                show(&b),
-                src.path.display()
+                crate::slash(&src.path),
+                crate::slash(&src.path)
             ),
         ));
         return;
@@ -382,7 +384,7 @@ fn check_edge(cfg: &Config, edge: &Edge<'_>, chain: &[&DirConfig], out: &mut Vec
                     "{dloc}: `{}` -> `{}` is not in the allow list of {} ({:?})",
                     src.name,
                     dst.name,
-                    c.file.display(),
+                    crate::slash(&c.file),
                     allow
                 ),
             ));
@@ -409,7 +411,7 @@ pub fn check_coverage(
         if !member_dirs.contains(dir) {
             out.push(Violation::new(
                 Rule::NotInWorkspace,
-                rel.display().to_string(),
+                crate::slash(rel),
                 "crate is not a member of the root Cargo workspace, so its dependencies are not checked; add it to [workspace] members".into(),
             ));
         }

@@ -7,7 +7,8 @@
 //!    dependency is checked against the global rules and then against the `allow` lists of
 //!    the `LAYER.toml` files from the layer root down to the crate (each can only narrow).
 //!    Inside one layer, a crate in first-level module X may not depend on a crate in another
-//!    first-level module Y unless the layer-root `LAYER.toml` lists Y in `allow_siblings`.
+//!    first-level module Y unless the layer-root `LAYER.toml` lists the edge X -> Y in its
+//!    `[allow_siblings]` table; those edges must be one-directional (a DAG).
 //!    Contracts crates may depend on registry (crates.io) crates only if they are listed in
 //!    `LAYERS.toml [contracts] allow_external`.
 //! 2. **Forbidden concepts** (`[forbidden]` + `forbid_concepts`) in identifiers, string
@@ -46,6 +47,14 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// A repo-relative path written with `/` on every platform, for reports and messages.
+pub fn slash(p: &Path) -> String {
+    p.components()
+        .map(|c| c.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Rule {
     /// Lower level depends on a higher level.
@@ -62,7 +71,7 @@ pub enum Rule {
     DepOnTesting,
     /// Globally allowed, but excluded by a `LAYER.toml` `allow` list.
     NotAllowed,
-    /// Two different first-level modules of one layer, target not in `allow_siblings`.
+    /// Two different first-level modules of one layer, edge not in `[allow_siblings]`.
     SiblingModule,
     /// Contracts crate depends on an external crate not in `[contracts] allow_external`
     /// (or not from crates.io).
@@ -194,7 +203,7 @@ pub fn check_with_cargo(root: &Path, cargo: &OsStr) -> Result<Report, Error> {
                 format!(
                     "layer `{}` path `{}` is not a directory",
                     l.name,
-                    l.path.display()
+                    slash(&l.path)
                 ),
             ));
         }

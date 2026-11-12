@@ -51,9 +51,9 @@ pub struct DirConfig {
     pub dir: PathBuf,
     /// `None` = key absent (no narrowing). `Some` = only these target layers ("*" = any).
     pub allow: Option<Vec<String>>,
-    /// Validated `allow_siblings`: first-level modules of the layer that every module of
-    /// the layer may depend on. Only ever non-empty in a layer-root `LAYER.toml`.
-    pub allow_siblings: Vec<String>,
+    /// Validated `[allow_siblings]`: directed exception edges between first-level modules
+    /// of the layer (a DAG). Only ever non-empty in a layer-root `LAYER.toml`.
+    pub allow_siblings: SiblingEdges,
     pub forbid_concepts: Vec<String>,
 }
 
@@ -117,6 +117,8 @@ struct RawContracts {
 #[serde(deny_unknown_fields)]
 struct RawLayerToml {
     layer: RawLayerSection,
+    /// `[allow_siblings]`: module -> sibling modules it may depend on.
+    allow_siblings: Option<BTreeMap<String, Vec<String>>>,
 }
 
 #[derive(Deserialize)]
@@ -124,7 +126,6 @@ struct RawLayerToml {
 struct RawLayerSection {
     name: Option<String>,
     allow: Option<Vec<String>>,
-    allow_siblings: Option<Vec<String>>,
     #[serde(default)]
     forbid_concepts: Vec<String>,
 }
@@ -206,9 +207,9 @@ pub fn load_layers(root: &Path) -> Result<LayersFile, Error> {
                 return Err(Error(format!(
                     "LAYERS.toml: layer `{}` ({}) is nested inside layer `{}` ({}); nested layers are not supported",
                     a.name,
-                    a.path.display(),
+                    crate::slash(&a.path),
                     b.name,
-                    b.path.display()
+                    crate::slash(&b.path)
                 )));
             }
         }
@@ -271,7 +272,7 @@ impl Config {
     /// reporting (its narrowing would otherwise be silently lost, so the run still fails).
     pub fn load_dirs(&mut self, root: &Path, files: &[PathBuf], out: &mut Vec<Violation>) {
         for rel in files {
-            let loc = rel.display().to_string();
+            let loc = crate::slash(rel);
             let Some(layer) = self.layer_of(rel).cloned() else {
                 continue;
             };
@@ -342,7 +343,7 @@ impl Config {
                 }
             }
             let allow_siblings =
-                validate_allow_siblings(root, &layer, &dir, s.allow_siblings, &loc, out);
+                validate_allow_siblings(root, &layer, &dir, raw.allow_siblings, &loc, out);
             for c in &s.forbid_concepts {
                 if split_words(c).is_empty() {
                     out.push(Violation::new(
@@ -439,50 +440,128 @@ impl Config {
     }
 }
 
-/// `allow_siblings` is an exception to the sibling-module rule, so only the layer-root
-/// `LAYER.toml` may declare it, and each entry must be an existing first-level module
-/// directory of the layer. Returns the valid entries.
+/// Directed sibling exceptions of one layer: module -> sibling modules it may depend on.
+pub type SiblingEdges = BTreeMap<String, BTreeSet<String>>;
+
+/// A first-level module directory name of `layer` (no path, no wildcard, exists, not a link).
+fn is_module(root: &Path, layer: &Layer, name: &str) -> bool {
+    let single = !name.is_empty()
+        && name != "."
+        && name != ".."
+        && !name.contains(['/', '\\', '*', '?', '[', ']']);
+    single && fs::symlink_metadata(root.join(&layer.path).join(name)).is_ok_and(|m| m.is_dir())
+}
+
+/// `[allow_siblings]` is an exception to the sibling-module rule ("단방향 참조를 원칙으로
+/// 한다"): only the layer-root `LAYER.toml` may declare it, every source and target must be
+/// an existing first-level module directory of the layer, and the edges must be
+/// one-directional (a DAG: no pair in both directions, no cycle, no self edge). If the edges
+/// are not a DAG, none of them is applied. Returns the edges to apply.
 fn validate_allow_siblings(
     root: &Path,
     layer: &Layer,
     dir: &Path,
-    entries: Option<Vec<String>>,
+    table: Option<BTreeMap<String, Vec<String>>>,
     loc: &str,
     out: &mut Vec<Violation>,
-) -> Vec<String> {
-    let Some(entries) = entries else {
-        return Vec::new();
+) -> SiblingEdges {
+    let Some(table) = table else {
+        return SiblingEdges::new();
     };
+    let lpath = crate::slash(&layer.path);
+    let bad = |rule: Rule, msg: String| Violation::new(rule, loc.to_string(), msg);
     if dir != layer.path {
-        out.push(Violation::new(
+        out.push(bad(
             Rule::ConfigWidens,
-            loc.to_string(),
             format!(
-                "allow_siblings is only valid in the layer-root {}/LAYER.toml; a nested LAYER.toml may only narrow",
-                layer.path.display()
+                "[allow_siblings] is only valid in the layer-root {lpath}/LAYER.toml; a nested LAYER.toml may only narrow"
             ),
         ));
-        return Vec::new();
+        return SiblingEdges::new();
     }
-    let mut valid = Vec::new();
-    for e in entries {
-        let single =
-            !e.is_empty() && e != "." && e != ".." && !e.contains(['/', '\\', '*', '?', '[', ']']);
-        let is_module = single
-            && fs::symlink_metadata(root.join(&layer.path).join(&e)).is_ok_and(|m| m.is_dir());
-        if is_module {
-            valid.push(e);
-        } else {
-            out.push(Violation::new(
-                Rule::ConfigInvalid,
-                loc.to_string(),
-                format!(
-                    "allow_siblings entry `{e}` is not a first-level module directory of layer `{}` ({})",
-                    layer.name,
-                    layer.path.display()
-                ),
-            ));
+    let not_module = |what: &str, name: &str| {
+        format!(
+            "[allow_siblings] {what} `{name}` is not a first-level module directory of layer `{}` ({lpath})",
+            layer.name
+        )
+    };
+    let mut edges = SiblingEdges::new();
+    let mut self_edge = false;
+    for (from, targets) in table {
+        if !is_module(root, layer, &from) {
+            out.push(bad(Rule::ConfigInvalid, not_module("module", &from)));
+            continue;
+        }
+        for to in targets {
+            if !is_module(root, layer, &to) {
+                out.push(bad(Rule::ConfigInvalid, not_module("target", &to)));
+            } else if to == from {
+                self_edge = true;
+                out.push(bad(
+                    Rule::ConfigInvalid,
+                    format!(
+                        "[allow_siblings] edge `{from}` -> `{from}` points at itself (a module may always use itself); no edge of this file is applied"
+                    ),
+                ));
+            } else {
+                edges.entry(from.clone()).or_default().insert(to);
+            }
         }
     }
-    valid
+    let cycles = cycles(&edges);
+    for c in &cycles {
+        let msg = if let [a, b] = c.as_slice() {
+            format!(
+                "allow_siblings lists `{a}` and `{b}` in both directions; references must be one-directional, so no edge of this file is applied"
+            )
+        } else {
+            let names: Vec<String> = c.iter().map(|m| format!("`{m}`")).collect();
+            format!(
+                "allow_siblings edges form a cycle among {}; references must be one-directional, so no edge of this file is applied",
+                names.join(", ")
+            )
+        };
+        out.push(bad(Rule::ConfigInvalid, msg));
+    }
+    if self_edge || !cycles.is_empty() {
+        return SiblingEdges::new();
+    }
+    edges
+}
+
+/// The strongly connected components with more than one module (each holds a cycle), sorted.
+fn cycles(edges: &SiblingEdges) -> Vec<Vec<String>> {
+    let reachable = |start: &str| {
+        let mut seen = BTreeSet::new();
+        let mut stack = vec![start.to_string()];
+        while let Some(n) = stack.pop() {
+            for t in edges.get(&n).into_iter().flatten() {
+                if seen.insert(t.clone()) {
+                    stack.push(t.clone());
+                }
+            }
+        }
+        seen
+    };
+    let nodes: BTreeSet<&String> = edges
+        .iter()
+        .flat_map(|(f, ts)| std::iter::once(f).chain(ts))
+        .collect();
+    let reach: BTreeMap<&String, BTreeSet<String>> =
+        nodes.iter().map(|n| (*n, reachable(n))).collect();
+    let mut done: BTreeSet<&String> = BTreeSet::new();
+    let mut out = Vec::new();
+    for &n in &nodes {
+        if done.contains(n) || !reach[n].contains(n) {
+            continue;
+        }
+        let scc: Vec<&String> = nodes
+            .iter()
+            .copied()
+            .filter(|m| reach[n].contains(*m) && reach[m].contains(n))
+            .collect();
+        done.extend(scc.iter().copied());
+        out.push(scc.into_iter().cloned().collect());
+    }
+    out
 }

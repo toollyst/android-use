@@ -52,7 +52,7 @@ pub fn concepts_for(cfg: &Config, layer: &Layer, chain: &[&DirConfig]) -> Vec<Co
     }
     for d in chain {
         for c in &d.forbid_concepts {
-            add(c, d.file.display().to_string());
+            add(c, crate::slash(&d.file));
         }
     }
     list.into_iter()
@@ -112,7 +112,7 @@ pub fn check_entry(
     let parent = rel.parent().unwrap_or(Path::new(""));
     let chain = cfg.chain(parent);
     let concepts = concepts_for(cfg, layer, &chain);
-    let loc = rel.display().to_string();
+    let loc = crate::slash(rel);
 
     let what = if is_dir {
         "directory name"
