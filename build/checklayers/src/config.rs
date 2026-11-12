@@ -452,8 +452,8 @@ fn is_module(root: &Path, layer: &Layer, name: &str) -> bool {
     single && fs::symlink_metadata(root.join(&layer.path).join(name)).is_ok_and(|m| m.is_dir())
 }
 
-/// `[allow_siblings]` is an exception to the sibling-module rule ("단방향 참조를 원칙으로
-/// 한다"): only the layer-root `LAYER.toml` may declare it, every source and target must be
+/// `[allow_siblings]` is an exception to the sibling-module rule ("one-way references are the
+/// rule"): only the layer-root `LAYER.toml` may declare it, every source and target must be
 /// an existing first-level module directory of the layer, and the edges must be
 /// one-directional (a DAG: no pair in both directions, no cycle, no self edge). If the edges
 /// are not a DAG, none of them is applied. Returns the edges to apply.

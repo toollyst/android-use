@@ -1,4 +1,4 @@
-//! Word splitting and matching for the forbidden-concept lint ("대소문자 무시, 단어 접두 일치").
+//! Word splitting and matching for the forbidden-concept lint ("Case-insensitive, word-prefix match").
 //!
 //! A chunk of text (identifier, string literal, file name, crate name) is split into
 //! lowercase words at:
