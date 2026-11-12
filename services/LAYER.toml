@@ -1,0 +1,5 @@
+[layer]
+name = "services"
+allow = ["base", "contracts", "runtime"]
+forbid_siblings = true
+forbid_concepts = ["tenant", "billing"]

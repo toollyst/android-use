@@ -1,0 +1,8 @@
+# OWNERS: 디렉터리별 소유자 (하위 디렉터리 OWNERS가 우선)
+# 형식: <path-glob> <owner> [<owner>...]
+# 계약과 패치는 별도 승인 그룹을 둔다.
+# TODO: <owner>를 실제 GitHub 계정/팀으로 교체
+
+*                       <owner>
+contracts/**            <owner>   # 계약 변경: 양쪽 레이어 OWNERS 승인 필요
+third_party/**/patches  <owner>   # 패치 거버넌스

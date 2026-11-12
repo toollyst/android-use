@@ -1,0 +1,3 @@
+[layer]
+name = "base"
+allow = ["third_party"]

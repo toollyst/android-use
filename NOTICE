@@ -1,0 +1,11 @@
+Droid Use
+Copyright 2026 The Droid Use Authors
+
+This product is licensed under the Apache License, Version 2.0.
+
+It builds on third-party components including, but not limited to:
+- wick (Apache-2.0), which builds on Firecracker (Apache-2.0)
+- Android Open Source Project (Apache-2.0 and others)
+- gfxstream, rutabaga, rust-vmm crates (see their respective licenses)
+
+Droid Use is not affiliated with Google, AWS, the Firecracker project, or the wick project.

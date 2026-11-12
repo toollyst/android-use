@@ -1,0 +1,40 @@
+# versions.toml: 전체 구성 요소 조합의 단일 원천(lock)
+# 릴리스 번들 버전 = 이 파일 내용의 해시 기반. 어떤 이미지든 구성 요소를 역추적할 수 있어야 한다.
+# TBD 값은 1주차에 확정한다.
+
+[bundle]
+schema = 1
+
+[wick]
+repo   = "https://github.com/toollyst/wick"
+commit = "TBD"               # wick이 Firecracker 버전을 고정함 (작성 시점: v1.18.0 기반)
+
+[aosp]
+manifest_url = "https://android.googlesource.com/platform/manifest"
+tag          = "TBD"         # 릴리스 태그 고정. AOSP 소스는 연 2회(Q2/Q4) 공개
+asb_level    = "TBD"         # 적용된 Android Security Bulletin 레벨 (YYYY-MM-DD)
+
+[kernel]
+gki_branch = "TBD"           # android-common GKI 브랜치
+gki_build  = "TBD"           # Google 서명 GKI prebuilt 빌드 ID
+kmi_check  = true
+
+[gfxstream]
+rev = "TBD"
+
+[rutabaga]
+rev = "TBD"
+
+[protocol]
+# 프로세스·기기 경계를 넘어 협상하는 직렬화 계약만 둔다. in-process trait 계약(machine, instance)과
+# 표준 프로토콜 기반 계약(device = vhost-user)은 각 contracts/<name>/VERSION으로만 관리한다.
+adp        = "0.1.0"
+guest_link = "0.1.0"
+keymint    = "0.1.0"          # 프레이밍·인증 버전. 페이로드는 [aosp] 태그의 kmr wire 형식
+node       = "0.1.0"
+spi        = "0.1.0"
+
+[images]
+# 빌드 산출물 해시 (CI가 채움)
+wick_arm64  = "TBD"
+wick_x86_64 = "TBD"

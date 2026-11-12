@@ -1,0 +1,29 @@
+# OS / 에디터
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# Rust
+/target/
+**/*.rs.bk
+
+# 빌드 산출물·캐시 (AOSP 출력은 $AOSP_ROOT/out, 레포 밖)
+/out/
+/dist/
+*.img
+*.profraw
+
+# 시크릿: 레포에는 공개키만 (docs/10-security.md §6)
+*.pem
+*.key
+*.pk8
+!guest/vendor/avb/*.pub.pem
+
+# 테스트·트레이스 산출물
+*.perfetto-trace
+/testing/perf/results/
+/testing/fuzz/artifacts/
+/testing/fuzz/corpus/

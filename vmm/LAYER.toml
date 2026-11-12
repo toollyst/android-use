@@ -1,0 +1,4 @@
+[layer]
+name = "vmm"
+allow = ["third_party", "base", "contracts"]
+forbid_concepts = ["android", "aosp", "package_name", "activity"]
